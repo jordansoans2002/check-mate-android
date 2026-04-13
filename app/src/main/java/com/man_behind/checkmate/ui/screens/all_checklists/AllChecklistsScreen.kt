@@ -38,7 +38,7 @@ fun AllChecklistsScreen(
 
     AllChecklistsContent(
         uiState = uiState,
-        onAddClick = { },
+        onAddClick = { viewModel.createChecklist() },
         onChecklistClick = onChecklistClick
     )
 }

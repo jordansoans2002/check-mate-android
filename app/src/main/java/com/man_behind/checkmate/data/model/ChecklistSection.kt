@@ -5,6 +5,6 @@ data class ChecklistSection(
     val name: String,
     val items: List<ChecklistItem>,
     val comments: String = "",
-    val progress: Float = 0f,
+    val itemsChecked: Int = 0,
     val lastModifiedItemId: Long? = null,
 )

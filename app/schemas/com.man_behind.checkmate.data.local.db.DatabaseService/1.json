@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "7444c7208652d9a950b97aedac48ab39",
+    "identityHash": "3eea30de804d21197ededbb62a4726bb",
     "entities": [
       {
         "tableName": "checklists",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `comments` TEXT NOT NULL, `createdOn` INTEGER NOT NULL, `lastModifiedSectionId` INTEGER, `lastModifiedOn` INTEGER NOT NULL, FOREIGN KEY(`lastModifiedSectionId`) REFERENCES `checklist_sections`(`id`) ON UPDATE NO ACTION ON DELETE SET DEFAULT )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `comments` TEXT NOT NULL, `createdOn` INTEGER NOT NULL, `lastModifiedSectionId` INTEGER, `lastModifiedOn` INTEGER, FOREIGN KEY(`lastModifiedSectionId`) REFERENCES `checklist_sections`(`id`) ON UPDATE NO ACTION ON DELETE SET DEFAULT )",
         "fields": [
           {
             "fieldPath": "id",
@@ -40,8 +40,7 @@
           {
             "fieldPath": "lastModifiedOn",
             "columnName": "lastModifiedOn",
-            "affinity": "INTEGER",
-            "notNull": true
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -142,7 +141,7 @@
       },
       {
         "tableName": "checklist_items",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `checklistId` INTEGER NOT NULL, `sectionId` INTEGER NOT NULL, `question` TEXT NOT NULL, `guidelines` TEXT NOT NULL, `selectedOptionId` INTEGER, `actionTaken` TEXT NOT NULL, `comment` TEXT NOT NULL, `fromDocumentation` INTEGER NOT NULL, `onInspection` INTEGER NOT NULL, FOREIGN KEY(`checklistId`) REFERENCES `checklists`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`sectionId`) REFERENCES `checklist_sections`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`selectedOptionId`) REFERENCES `checklist_item_options`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `checklistId` INTEGER NOT NULL, `sectionId` INTEGER NOT NULL, `question` TEXT NOT NULL, `guidelines` TEXT, `selectedOptionId` INTEGER, `actionTaken` TEXT NOT NULL, `comment` TEXT NOT NULL, `fromDocumentation` INTEGER NOT NULL, `onInspection` INTEGER NOT NULL, `position` INTEGER NOT NULL, FOREIGN KEY(`checklistId`) REFERENCES `checklists`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`sectionId`) REFERENCES `checklist_sections`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`selectedOptionId`) REFERENCES `checklist_item_options`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -171,8 +170,7 @@
           {
             "fieldPath": "guidelines",
             "columnName": "guidelines",
-            "affinity": "TEXT",
-            "notNull": true
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "selectedOptionId",
@@ -202,6 +200,12 @@
             "columnName": "onInspection",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -228,6 +232,15 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_checklist_items_sectionId` ON `${TABLE_NAME}` (`sectionId`)"
+          },
+          {
+            "name": "index_checklist_items_selectedOptionId",
+            "unique": false,
+            "columnNames": [
+              "selectedOptionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_checklist_items_selectedOptionId` ON `${TABLE_NAME}` (`selectedOptionId`)"
           }
         ],
         "foreignKeys": [
@@ -377,7 +390,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7444c7208652d9a950b97aedac48ab39')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3eea30de804d21197ededbb62a4726bb')"
     ]
   }
 }

@@ -7,6 +7,7 @@ import androidx.navigation.toRoute
 import com.man_behind.checkmate.data.model.ChecklistItem
 import com.man_behind.checkmate.data.repository.ChecklistRepository
 import com.man_behind.checkmate.ui.navigation.FillChecklist
+import com.man_behind.checkmate.utils.MediaManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -19,6 +20,7 @@ import javax.inject.Inject
 class FillChecklistViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val checklistRepository: ChecklistRepository,
+    val mediaManager: MediaManager,
 ): ViewModel() {
     private val route = savedStateHandle.toRoute<FillChecklist>()
     private val checklistId = route.checklistId
@@ -45,5 +47,4 @@ class FillChecklistViewModel @Inject constructor(
     fun flushAll() {
         controllers.values.forEach { it.flush() }
     }
-
 }

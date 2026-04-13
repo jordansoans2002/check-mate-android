@@ -27,7 +27,11 @@ import androidx.room3.PrimaryKey
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index("checklistId"), Index("sectionId")]
+    indices = [
+        Index("checklistId"),
+        Index("sectionId"),
+    Index("selectedOptionId")
+    ]
 )
 data class ChecklistItemEntity (
     @PrimaryKey(autoGenerate = true)
@@ -35,10 +39,11 @@ data class ChecklistItemEntity (
     val checklistId: Long,
     val sectionId: Long,
     val question: String,
-    val guidelines: String,
+    val guidelines: String? = null,
     val selectedOptionId: Long? = null,
     val actionTaken: String = "",
     val comment: String = "",
     val fromDocumentation: Boolean,
     val onInspection: Boolean,
+    val position: Int
 )

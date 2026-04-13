@@ -3,6 +3,7 @@ package com.man_behind.checkmate.data.local.db.entity
 import androidx.room3.Entity
 import androidx.room3.ForeignKey
 import androidx.room3.PrimaryKey
+import java.time.LocalDateTime
 
 @Entity(
     tableName = "checklists",
@@ -21,7 +22,7 @@ data class ChecklistEntity(
 
     val name: String,
     val comments: String = "",
-    val createdOn: Long,
+    val createdOn: LocalDateTime,
     val lastModifiedSectionId: Long? = null,
-    val lastModifiedOn: Long
+    val lastModifiedOn: LocalDateTime? = null
 )

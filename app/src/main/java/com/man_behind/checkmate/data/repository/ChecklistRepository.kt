@@ -9,13 +9,12 @@ interface ChecklistRepository {
     suspend fun createChecklist(name: String)
     fun getAllChecklists(): Flow<List<ChecklistOverview>>
 
-    fun getChecklistById(id: Long): Flow<Checklist>
+    fun getChecklistById(id: Long): Flow<Checklist?>
     suspend fun updateChecklistItem(
         itemId: Long,
         selectedOptionId: Long? = null,
         actionTaken: String? = null,
         comment: String? = null,
-        images: List<Uri>? = null
     )
     suspend fun updateSelectedOption(
         itemId: Long,
@@ -29,10 +28,12 @@ interface ChecklistRepository {
         itemId: Long,
         comment: String
     )
-    suspend fun updateImages(
+    suspend fun addImages(
         itemId: Long,
         images: List<Uri>
     )
+
+    suspend fun removeImage(itemImageId: Long)
 
     suspend fun renameChecklist(
         checklistId: Long,

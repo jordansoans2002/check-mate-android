@@ -31,6 +31,7 @@ object LocalDataModule {
         context,
         DatabaseService::class.java,
         dbName
-    ).build()
+    ).fallbackToDestructiveMigration() 
+    .build()
 
 }

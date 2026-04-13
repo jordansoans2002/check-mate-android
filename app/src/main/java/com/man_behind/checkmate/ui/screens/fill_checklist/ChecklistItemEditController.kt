@@ -10,7 +10,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.time.debounce
 
 class ChecklistItemEditController(
     private val itemId: Long,
@@ -75,12 +74,18 @@ class ChecklistItemEditController(
         }
     }
 
-    fun onImagesUpdated(images: List<Uri>) {
+    fun onImagesAdded(images: List<Uri>) {
         scope.launch {
-            repository.updateImages(
+            repository.addImages(
                 itemId = itemId,
                 images = images
             )
+        }
+    }
+
+    fun onImagesRemoved(itemImageId: Long) {
+        scope.launch {
+            repository.removeImage(itemImageId)
         }
     }
 

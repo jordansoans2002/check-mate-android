@@ -9,4 +9,8 @@
     <string name="add_image_label">Add Images</string>
     <string name="attached_image_label">Attached Image</string>
     <string name="remove_image_label">Remove Image</string>
+    <string name="guidelines_label">Guidelines</string>
+    <string name="progress">%1$s / %2$s</string>
+    <string name="previous_section">Previous Section</string>
+    <string name="next_section">Next Section</string>
 </resources>

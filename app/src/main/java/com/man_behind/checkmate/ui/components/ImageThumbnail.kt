@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -47,22 +48,27 @@ fun ImageThumbnail(
             contentScale = ContentScale.Crop,
         )
 
-        IconButton(
+        Box(
             modifier = Modifier
-                .size(8.dp)
                 .align(Alignment.TopEnd)
-                .background(
-                    color = Color.Black.copy(alpha = 0.6f),
-                ),
-            onClick = onRemove,
-
+                .padding(4.dp) // Padding from the edge of the thumbnail
         ) {
-            Icon(
-                modifier = Modifier.align(Alignment.Center),
-                imageVector = Icons.Default.Close,
-                contentDescription = stringResource(R.string.remove_image_label),
-                tint = Color.White,
-            )
+            IconButton(
+                modifier = Modifier
+                    .size(24.dp) // Large enough to be visible, small enough for a thumbnail
+                    .background(
+                        color = Color.Black.copy(alpha = 0.6f),
+                        shape = CircleShape // Circular background for the "X"
+                    ),
+                onClick = onRemove,
+            ) {
+                Icon(
+                    modifier = Modifier.size(16.dp), // Icon scaled to fit inside the 24dp button
+                    imageVector = Icons.Default.Close,
+                    contentDescription = stringResource(R.string.remove_image_label),
+                    tint = Color.White,
+                )
+            }
         }
     }
 }
