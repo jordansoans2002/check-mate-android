@@ -1,12 +1,11 @@
 package com.man_behind.checkmate.ui.screens.fill_checklist
 
+import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,6 +39,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,23 +53,19 @@ import com.man_behind.checkmate.R
 import com.man_behind.checkmate.data.model.Checklist
 import com.man_behind.checkmate.data.model.ChecklistItem
 import com.man_behind.checkmate.data.model.ChecklistItemOption
-import com.man_behind.checkmate.data.model.ChecklistOverview
 import com.man_behind.checkmate.data.model.ChecklistSection
-import com.man_behind.checkmate.data.repository.ChecklistRepository
-import com.man_behind.checkmate.data.repository.ChecklistRepositoryImpl
 import com.man_behind.checkmate.data.repository.ChecklistRepositoryMockImpl
 import com.man_behind.checkmate.ui.components.ChecklistItemRow
 import com.man_behind.checkmate.ui.components.GuidelineBottomSheet
 import com.man_behind.checkmate.ui.components.GuidelineTooltip
 import com.man_behind.checkmate.ui.components.ImageSourcePicker
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import java.time.LocalDateTime
 
 @Composable
 fun FillChecklistScreen(
     viewModel: FillChecklistViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     val checklist by viewModel.checklist.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -84,6 +80,14 @@ fun FillChecklistScreen(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
         if (uris.isNotEmpty()) {
+            uris.forEach { uri ->
+                try {
+                    val flag = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    context.contentResolver.takePersistableUriPermission(uri, flag)
+                } catch (e: Exception) {
+                    Log.e("gallery launcher", "Failed to take permission $e")
+                }
+            }
             currentItemForImages?.let { item ->
                 viewModel.getController(item).onImagesAdded(uris)
             }
