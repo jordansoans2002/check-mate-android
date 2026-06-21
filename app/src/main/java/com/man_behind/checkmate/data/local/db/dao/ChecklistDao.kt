@@ -33,7 +33,7 @@ interface ChecklistDao {
                     SUM(
                         CASE
                             WHEN items.selectedOptionId IS NOT NULL
-                                 OR TRIM(COALESCE(items.comments, '')) <> ''
+                                 OR TRIM(COALESCE(items.comment, '')) <> ''
                                  OR TRIM(COALESCE(items.actionTaken, '')) <> ''
                             THEN 1
                             ELSE 0
