@@ -31,5 +31,6 @@ data class ChecklistSectionEntity (
     val name: String,
     val comments: String = "",
 
+    val position: Int,
     val lastModifiedItemId: Long? = null
 )

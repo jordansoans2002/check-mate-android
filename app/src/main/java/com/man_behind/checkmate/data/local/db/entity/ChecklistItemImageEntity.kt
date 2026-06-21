@@ -11,15 +11,16 @@ import androidx.room3.PrimaryKey
         ForeignKey(
             entity = ChecklistItemEntity::class,
             parentColumns = ["id"],
-            childColumns = ["checklistItemId"],
+            childColumns = ["itemId"],
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index("checklistItemId")]
+    indices = [Index("itemId")]
 )
 data class ChecklistItemImageEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
-    val checklistItemId: Long,
+    val itemId: Long,
+
     val uri: String
 )

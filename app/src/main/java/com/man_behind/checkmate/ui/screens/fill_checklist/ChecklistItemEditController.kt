@@ -85,7 +85,7 @@ class ChecklistItemEditController(
 
     fun onImagesRemoved(itemImageId: Long) {
         scope.launch {
-            repository.removeImage(itemImageId)
+            repository.removeImage(itemId, itemImageId)
         }
     }
 

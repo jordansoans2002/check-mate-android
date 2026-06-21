@@ -6,10 +6,10 @@ import androidx.room3.Index
 import androidx.room3.PrimaryKey
 
 @Entity(
-    tableName = "checklist_item_options",
+    tableName = "question_item_options",
     foreignKeys = [
         ForeignKey(
-            entity = ChecklistItemEntity::class,
+            entity = QuestionSetItemEntity::class,
             parentColumns = ["id"],
             childColumns = ["itemId"],
             onDelete = ForeignKey.CASCADE
@@ -17,11 +17,11 @@ import androidx.room3.PrimaryKey
     ],
     indices = [Index("itemId")]
 )
-data class ChecklistItemOptionEntity(
+data class QuestionSetItemOptionEntity (
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val itemId: Long,
 
-    val position: Int,
     val text: String,
+    val position: Int,
 )

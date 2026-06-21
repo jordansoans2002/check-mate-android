@@ -7,7 +7,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 
 class ChecklistRepositoryMockImpl : ChecklistRepository {
-    override suspend fun createChecklist(name: String) {}
+    override suspend fun createChecklist(
+        questionSetId: Long,
+        name: String
+    ): Long {
+        return 1L
+    }
 
     override fun getAllChecklists(): Flow<List<ChecklistOverview>> = flowOf(emptyList())
 
@@ -27,7 +32,7 @@ class ChecklistRepositoryMockImpl : ChecklistRepository {
     override suspend fun updateComment(itemId: Long, comment: String) {}
 
     override suspend fun addImages(itemId: Long, images: List<Uri>) {}
-    override suspend fun removeImage(itemImageId: Long) {}
+    override suspend fun removeImage(itemId: Long, itemImageId: Long) {}
 
     override suspend fun renameChecklist(checklistId: Long, newName: String) {}
     override suspend fun deleteChecklist(id: Long) {}

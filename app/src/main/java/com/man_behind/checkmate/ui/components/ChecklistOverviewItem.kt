@@ -109,6 +109,7 @@ fun ChecklistOverviewItemPreview() {
     ChecklistOverviewItem(
         item = ChecklistOverview(
             id = 1,
+            questionSetId = 1,
             name = "Inspection Checklist",
             progress = listOf(0.2f, 0.5f, 0.7f, 0f),
             createdOn = "15-03-26",

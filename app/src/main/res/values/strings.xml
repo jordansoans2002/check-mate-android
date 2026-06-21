@@ -1,6 +1,10 @@
 <resources>
     <string name="app_name">Check Mate</string>
     <string name="no_checklist_text">No checklists created</string>
+    <string name="create_checklist_popup_title">Create checklist</string>
+    <string name="create_checklist_label">Checklist name</string>
+    <string name="cancel">Cancel</string>
+    <string name="create">Create</string>
     <string name="checklist_created_at_label">Created: %1$s</string>
     <string name="checklist_updated_at_label">Updated: %1$s</string>
     <string name="add_checklist_description">Add Checklist</string>

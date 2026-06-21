@@ -13,12 +13,19 @@ import java.time.LocalDateTime
             parentColumns = ["id"],
             childColumns = ["lastModifiedSectionId"],
             onDelete = ForeignKey.SET_DEFAULT
+        ),
+        ForeignKey(
+            entity = QuestionSetEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["questionSetId"],
+            onDelete = ForeignKey.SET_NULL
         )
     ]
 )
 data class ChecklistEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val questionSetId: Long? =null,
 
     val name: String,
     val comments: String = "",

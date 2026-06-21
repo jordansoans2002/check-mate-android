@@ -25,6 +25,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.man_behind.checkmate.R
 import com.man_behind.checkmate.data.model.ChecklistOverview
 import com.man_behind.checkmate.ui.components.ChecklistOverviewItem
+import com.man_behind.checkmate.ui.components.CreateChecklistDialog
 
 
 @Composable
@@ -36,9 +37,32 @@ fun AllChecklistsScreen(
 
     // TODO handler error snackbar
 
+    if (uiState.showCreateChecklistDialog) {
+        CreateChecklistDialog(
+            questionSets = uiState.questionSets,
+            onDismiss = { viewModel.toggleCreateChecklistDialog(false) },
+            onCreate = { id, name ->
+                if (id == null) {
+                    // TODO show error
+                    return@CreateChecklistDialog
+                }
+                viewModel.createChecklist(id, name)
+            }
+        )
+    }
+
+    uiState.newChecklistId?.let { checklistId ->
+        onChecklistClick(checklistId)
+    }
+
     AllChecklistsContent(
         uiState = uiState,
-        onAddClick = { viewModel.createChecklist() },
+        onAddClick = {
+            if (uiState.questionSets.isEmpty())
+                return@AllChecklistsContent
+
+            viewModel.toggleCreateChecklistDialog(true)
+        },
         onChecklistClick = onChecklistClick
     )
 }
@@ -112,12 +136,14 @@ fun AllChecklistsContentPreview() {
     val sampleData = listOf(
         ChecklistOverview(
             id = 1,
+            questionSetId = 1,
             name = "Inspection Checklist",
             progress = listOf(0.2f),
             createdOn = "14-03-25",
         ),
         ChecklistOverview(
             id = 2,
+            questionSetId = 1,
             name = "Safety Audit",
             progress = listOf(0.2f),
             createdOn = "14-03-25",

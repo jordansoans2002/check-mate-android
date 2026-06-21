@@ -7,12 +7,12 @@ data class ChecklistItemWithDetails(
     @Embedded val item: ChecklistItemEntity,
     @Relation(
         parentColumn = "id",
-        entityColumn = "checklistItemId"
+        entityColumn = "itemId"
     )
     val options: List<ChecklistItemOptionEntity>,
     @Relation(
         parentColumn = "id",
-        entityColumn = "checklistItemId"
+        entityColumn = "itemId"
     )
     val images: List<ChecklistItemImageEntity>
 )

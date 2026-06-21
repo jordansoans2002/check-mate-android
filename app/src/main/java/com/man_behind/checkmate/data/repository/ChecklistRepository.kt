@@ -6,7 +6,7 @@ import com.man_behind.checkmate.data.model.ChecklistOverview
 import kotlinx.coroutines.flow.Flow
 
 interface ChecklistRepository {
-    suspend fun createChecklist(name: String)
+    suspend fun createChecklist(questionSetId: Long, name: String): Long
     fun getAllChecklists(): Flow<List<ChecklistOverview>>
 
     fun getChecklistById(id: Long): Flow<Checklist?>
@@ -33,7 +33,7 @@ interface ChecklistRepository {
         images: List<Uri>
     )
 
-    suspend fun removeImage(itemImageId: Long)
+    suspend fun removeImage(itemId: Long, itemImageId: Long)
 
     suspend fun renameChecklist(
         checklistId: Long,
