@@ -1,0 +1,6 @@
+sectionNumber,sectionName,questionNumber,question,guidelines,fromDocumentation,onInspection,options
+1,General Information,1.1,Vessel's name as it appears on the Certificate of xxx,,false,false,
+1,General Information,1.4,Date the vessel was delivered,"Date of delivery can be found either in form A of the International Oil Pollution Prevention (IOPP) Certificate or Safety Construction Certificate.",true,false,
+1,General Information,1.8,Hull type,,true,false,Double Bottom-Single Skin Side|Double Hull
+1,General Information,1.10,Name of cargo being handled,"This question should be answered N/A when vessel is in ballast condition. Refer to shipper declaration and/or dangerous goods declaration to determine the correct name of the cargo.",false,false,N/A
+2,Certification and personnel management,2.1,"Is the latest Class Survey Status available, are all Statutory Certificates listed within it valid, is the vessel free of any overdue Conditions of Class, and are all classification and statutory surveys up to date?","The inspector should attach a PDF copy of the Class Survey Status...",false,false,Yes|No|N/A|N/V

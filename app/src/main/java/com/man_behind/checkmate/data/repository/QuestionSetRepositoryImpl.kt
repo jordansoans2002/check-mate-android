@@ -1,73 +1,101 @@
 package com.man_behind.checkmate.data.repository
 
+import android.content.Context
+import com.man_behind.checkmate.data.local.csv.CsvParser
 import com.man_behind.checkmate.data.local.db.DatabaseService
 import com.man_behind.checkmate.data.local.db.entity.QuestionSetItemEntity
 import com.man_behind.checkmate.data.local.db.entity.QuestionSetSectionEntity
 import com.man_behind.checkmate.data.local.db.entity.QuestionSetWithDetails
 import com.man_behind.checkmate.data.model.QuestionSetOverview
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class QuestionSetRepositoryImpl @Inject constructor(
-    private val databaseService: DatabaseService
+    private val databaseService: DatabaseService,
+    @ApplicationContext private val context: Context,
 ) : QuestionSetRepository {
+    companion object {
+        // CSV column indices — must match the header row exactly
+        private const val COL_SECTION_NAME     = 1
+        // COL_SECTION_NUMBER (0) and COL_QUESTION_NUMBER (2) are reference-only,
+        // not stored in the DB. Position is derived from row order in the file.
+        private const val COL_QUESTION         = 3
+        private const val COL_GUIDELINES       = 4
+        private const val COL_FROM_DOCS        = 5
+        private const val COL_ON_INSPECTION    = 6
+        private const val COL_OPTIONS          = 7
+        private const val EXPECTED_COLUMNS     = 8
+
+        private const val ASSET_PATH = "questions/risq_3_2.csv"
+    }
 
     override suspend fun loadDefaultQuestionSetIfNeeded() {
         val dao = databaseService.questionSetDao()
         if (dao.hasAnyQuestionSets()) return
 
-        // Dummy data for now — same shape as the eventual CSV import.
-        // Replace this block with CSV parsing + dao.importQuestionSet(...) later;
-        // the call site and downstream behavior won't need to change.
-        val data = mapOf(
-            QuestionSetSectionEntity(questionSetId = 0, position = 0, name = "General Information") to listOf(
-                QuestionSetItemEntity(
-                    sectionId = 0, position = 0,
-                    question = "Vessel's name as it appears on the Certificate of xxx",
-                    guidelines = "",
-                    fromDocumentation = true, onInspection = false
-                ) to emptyList(),
-                QuestionSetItemEntity(
-                    sectionId = 0, position = 1,
-                    question = "Date the vessel was delivered",
-                    guidelines = "Date of delivery can be found either in form A of the International Oil Pollution Prevention(IOPP) Certificate or Safety Construction Certificate",
-                    fromDocumentation = true, onInspection = false
-                ) to emptyList(),
-                QuestionSetItemEntity(
-                    sectionId = 0, position = 2,
-                    question = "Hull Type",
-                    guidelines = "",
-                    fromDocumentation = true, onInspection = false
-                ) to listOf("Double Bottom-Single Skin Side", "Double Hull")
-            ),
+        loadFromCsv(name = "RISQ 3.2", assetPath = ASSET_PATH)
+    }
 
-            QuestionSetSectionEntity(questionSetId = 0, position = 1, name = "Certification and Personnel Management") to listOf(
-                QuestionSetItemEntity(
-                    sectionId = 0, position = 0,
-                    question = "Has the vessel been provided with certificates of financial security for seafarers",
-                    guidelines = "Check the needle is in the green zone.",
-                    fromDocumentation = true, onInspection = true
-                ) to listOf("Yes", "No", "N/A", "N/V"),
-                QuestionSetItemEntity(
-                    sectionId = 0, position = 1,
-                    question = "Is the officer matrix accurately completed and does it reflect the information on officers and engineers on board the vessel at the time of inspection",
-                    guidelines = "Check all 4 main exits.",
-                    fromDocumentation = false, onInspection = true
-                ) to listOf("Yes", "No", "N/A", "N/V")
-            ),
+    private suspend fun loadFromCsv(name: String, assetPath: String) {
+        val csvText = context.assets.open(assetPath)
+            .bufferedReader(Charsets.UTF_8)
+            .use { it.readText() }
 
-            QuestionSetSectionEntity(questionSetId = 0, position = 2, name = "Navigation") to listOf(
-                QuestionSetItemEntity(
-                    sectionId = 0, position = 0,
-                    question = "Minimum staff count met?",
-                    guidelines = "Compare roster against floor count.",
-                    fromDocumentation = true, onInspection = true
-                ) to listOf("Yes", "No")
+        val rows = CsvParser.parse(csvText)
+        require(rows.size > 1) { "$assetPath is empty or contains only a header" }
+
+        val header = rows.first()
+        require(header.size == EXPECTED_COLUMNS) {
+            "Expected $EXPECTED_COLUMNS columns, found ${header.size} columns" +
+            " Check the CSV header matches: sectionNumber,sectionName,questionNumber," +
+            "question,guidelines,fromDocumentation,onInspection,options"
+        }
+
+        val dataRows = rows.drop(1)
+
+        val sectionMap = LinkedHashMap<String, MutableList<List<String>>>()
+        dataRows.forEach { row ->
+            if (row.size < EXPECTED_COLUMNS) return@forEach // skip malformed rows
+            val sectionName = row[COL_SECTION_NAME].trim()
+            sectionMap.getOrPut(sectionName) { mutableListOf() }.add(row)
+        }
+
+        val sectionsWithItems = sectionMap.entries.mapIndexed { sectionIndex, (sectionName, sectionRows) ->
+            val section = QuestionSetSectionEntity(
+                questionSetId = 0,
+                position = sectionIndex,
+                name = sectionName,
             )
-        )
 
-        dao.importQuestionSet(name = "Default", sectionsWithItems = data)
+            val items = sectionRows.mapIndexed { itemIndex, row ->
+                val item = QuestionSetItemEntity(
+                    sectionId = 0,
+                    position = itemIndex,
+                    question = row[COL_QUESTION].trim(),
+                    guidelines = row[COL_GUIDELINES].trim().ifBlank { null },
+                    fromDocumentation = row[COL_FROM_DOCS].trim().lowercase() == "true",
+                    onInspection = row[COL_ON_INSPECTION].trim().lowercase() == "true"
+                )
+
+                val options = row.getOrNull(COL_OPTIONS)
+                    ?.trim()
+                    ?.split("|")
+                    ?.map { it.trim() }
+                    ?.filter { it.isNotEmpty() }
+                    ?: emptyList()
+
+                item to options
+            }
+
+            section to items
+        }
+
+        databaseService.questionSetDao().importQuestionSet(
+            name = name,
+            sectionsWithItems = sectionsWithItems.toMap()
+        )
     }
 
     override fun getAllQuestionSets(): Flow<List<QuestionSetOverview>> =
