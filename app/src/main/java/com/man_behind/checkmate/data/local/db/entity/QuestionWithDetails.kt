@@ -6,8 +6,8 @@ import androidx.room3.Relation
 data class QuestionItemWithOptions(
     @Embedded val item: QuestionSetItemEntity,
     @Relation(
-        parentColumn = "id",
-        entityColumn = "itemId"
+        parentColumns = ["id"],
+        entityColumns = ["itemId"]
     )
     val options: List<QuestionSetItemOptionEntity>
 )
@@ -15,8 +15,8 @@ data class QuestionItemWithOptions(
 data class QuestionSectionWithItems(
     @Embedded val section: QuestionSetSectionEntity,
     @Relation(
-        parentColumn = "id",
-        entityColumn = "sectionId",
+        parentColumns = ["id"],
+        entityColumns = ["sectionId"],
         entity = QuestionSetItemEntity::class
     )
     val items: List<QuestionItemWithOptions>
@@ -25,8 +25,8 @@ data class QuestionSectionWithItems(
 data class QuestionSetWithDetails(
     @Embedded val questionSet: QuestionSetEntity,
     @Relation(
-        parentColumn = "id",
-        entityColumn = "questionSetId",
+        parentColumns = ["id"],
+        entityColumns = ["questionSetId"],
         entity = QuestionSetSectionEntity::class,
     )
     val sections: List<QuestionSectionWithItems>

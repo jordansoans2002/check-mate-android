@@ -6,13 +6,13 @@ import androidx.room3.Relation
 data class ChecklistItemWithDetails(
     @Embedded val item: ChecklistItemEntity,
     @Relation(
-        parentColumn = "id",
-        entityColumn = "itemId"
+        parentColumns = ["id"],
+        entityColumns = ["itemId"]
     )
     val options: List<ChecklistItemOptionEntity>,
     @Relation(
-        parentColumn = "id",
-        entityColumn = "itemId"
+        parentColumns = ["id"],
+        entityColumns = ["itemId"]
     )
     val images: List<ChecklistItemImageEntity>
 )
@@ -20,8 +20,8 @@ data class ChecklistItemWithDetails(
 data class ChecklistSectionWithItems(
     @Embedded val section: ChecklistSectionEntity,
     @Relation(
-        parentColumn = "id",
-        entityColumn = "sectionId",
+        parentColumns = ["id"],
+        entityColumns = ["sectionId"],
         entity = ChecklistItemEntity::class
     )
     val items: List<ChecklistItemWithDetails>
@@ -30,8 +30,8 @@ data class ChecklistSectionWithItems(
 data class ChecklistWithDetails(
     @Embedded val checklist: ChecklistEntity,
     @Relation(
-        parentColumn = "id",
-        entityColumn = "checklistId",
+        parentColumns = ["id"],
+        entityColumns = ["checklistId"],
         entity = ChecklistSectionEntity::class
     )
     val sections: List<ChecklistSectionWithItems>
