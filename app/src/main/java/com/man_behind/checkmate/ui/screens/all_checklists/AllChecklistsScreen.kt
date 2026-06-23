@@ -125,9 +125,7 @@ fun AllChecklistsContent(
             )
         }
     }
-
 }
-
 
 
 @Preview(showBackground = true)
