@@ -3,7 +3,6 @@ package com.man_behind.checkmate.utils
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Canvas
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import android.util.Base64
@@ -16,6 +15,7 @@ import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.ceil
 import androidx.core.graphics.scale
+import com.man_behind.checkmate.data.model.Checklist
 
 /**
  * Exports a [ChecklistWithDetails] to a PDF file using [android.graphics.pdf.PdfDocument].
@@ -49,7 +49,7 @@ class ChecklistPdfExporter(private val context: Context) {
      * [onComplete] is called on the main thread.
      */
     fun export(
-        checklist: ChecklistWithDetails,
+        checklist: Checklist,
         outputFile: File,
         onComplete: (success: Boolean) -> Unit
     ) {
@@ -57,7 +57,13 @@ class ChecklistPdfExporter(private val context: Context) {
 
         // WebView MUST be created on the main thread.
         // We give it an explicit layout size so contentHeight is meaningful.
-        val wv = WebView(context).also { webView = it }
+        val wv =  try {
+            WebView(context).also { webView = it }
+        } catch (e: Exception) {
+            onComplete(false)
+            return
+        }
+
         wv.settings.apply {
             javaScriptEnabled = false
             allowFileAccess = true
@@ -138,21 +144,20 @@ class ChecklistPdfExporter(private val context: Context) {
     // HTML generation
     // -------------------------------------------------------------------------
 
-    private fun buildHtml(data: ChecklistWithDetails): String {
+    private fun buildHtml(data: Checklist): String {
         val sb = StringBuilder()
-        sb.append(htmlHead(data.checklist.name))
+        sb.append(htmlHead(data.name))
         sb.append("<body>")
 
         // ── Title block ───────────────────────────────────────────────────────
-        sb.append("""<div class="title-block"><h1>${data.checklist.name.escapeHtml()}</h1>""")
-        if (data.checklist.comments.isNotBlank()) {
-            sb.append("""<p class="checklist-comments">${data.checklist.comments.escapeHtml()}</p>""")
+        sb.append("""<div class="title-block"><h1>${data.name.escapeHtml()}</h1>""")
+        if (data.comments.isNotBlank()) {
+            sb.append("""<p class="checklist-comments">${data.comments.escapeHtml()}</p>""")
         }
         sb.append("</div>")
 
         // ── Sections ──────────────────────────────────────────────────────────
-        data.sections.sortedBy { it.section.position }.forEachIndexed { sIdx, sectionWithItems ->
-            val section = sectionWithItems.section
+        data.sections.sortedBy { it.position }.forEachIndexed { sIdx, section ->
             sb.append("""<div class="section">""")
             sb.append("""<h2 class="section-title">${section.name.escapeHtml()}</h2>""")
 
@@ -160,9 +165,8 @@ class ChecklistPdfExporter(private val context: Context) {
                 sb.append("""<p class="section-comments">${section.comments.escapeHtml()}</p>""")
             }
 
-            sectionWithItems.items.sortedBy { it.item.position }
-                .forEachIndexed { iIdx, itemWithDetails ->
-                    val item = itemWithDetails.item
+            section.items.sortedBy { it.position }
+                .forEachIndexed { iIdx, item ->
                     val qNum = "${sIdx + 1}.${iIdx + 1}"
 
                     sb.append("""<div class="item">""")
@@ -185,7 +189,7 @@ class ChecklistPdfExporter(private val context: Context) {
                     }
 
                     // Options
-                    val sortedOptions = itemWithDetails.options.sortedBy { it.position }
+                    val sortedOptions = item.options.sortedBy { it.position }
                     if (sortedOptions.isNotEmpty()) {
                         sb.append("""<ul class="options">""")
                         sortedOptions.forEach { option ->
@@ -208,10 +212,10 @@ class ChecklistPdfExporter(private val context: Context) {
                     }
 
                     // Images
-                    if (itemWithDetails.images.isNotEmpty()) {
+                    if (item.images.isNotEmpty()) {
                         sb.append("""<div class="images">""")
-                        itemWithDetails.images.forEach { imgEntity ->
-                            uriToBase64(imgEntity.uri)?.let { b64 ->
+                        item.images.forEach { imgEntity ->
+                            uriToBase64(imgEntity.uri.toString())?.let { b64 ->
                                 sb.append("""<img src="data:image/jpeg;base64,$b64" class="item-image" alt=""/>""")
                             }
                         }

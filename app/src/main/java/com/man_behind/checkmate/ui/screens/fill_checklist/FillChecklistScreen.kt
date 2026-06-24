@@ -349,9 +349,9 @@ fun FillChecklistContentPreview() {
                             question = "This is a sample question. Do you have any questions about it?",
                             guidelines = "Guidelines for this question.",
                             options = listOf(
-                                ChecklistItemOption(1, "Yes"),
-                                ChecklistItemOption(2, "No"),
-                                ChecklistItemOption(3, "N/A")
+                                ChecklistItemOption(1, 0,"Yes"),
+                                ChecklistItemOption(2, 1, "No"),
+                                ChecklistItemOption(3, 2, "N/A")
                             ),
                             position = 1,
                             fromDocumentation = true,
@@ -369,9 +369,9 @@ fun FillChecklistContentPreview() {
                             question = "This is a sample question. Do you have any questions about it?",
                             guidelines = "Guidelines for this question.",
                             options = listOf(
-                                ChecklistItemOption(1, "Yes"),
-                                ChecklistItemOption(2, "No"),
-                                ChecklistItemOption(3, "N/A")
+                                ChecklistItemOption(1, 0,"Yes"),
+                                ChecklistItemOption(2, 1,"No"),
+                                ChecklistItemOption(3, 2, "N/A")
                             ),
                             position = 1,
                             fromDocumentation = true,
@@ -389,9 +389,9 @@ fun FillChecklistContentPreview() {
                             question = "This is a sample question. Do you have any questions about it?",
                             guidelines = "Guidelines for this question.",
                             options = listOf(
-                                ChecklistItemOption(1, "Yes"),
-                                ChecklistItemOption(2, "No"),
-                                ChecklistItemOption(3, "N/A")
+                                ChecklistItemOption(1, 0,"Yes"),
+                                ChecklistItemOption(2, 1,"No"),
+                                ChecklistItemOption(3, 2, "N/A")
                             ),
                             position = 1,
                             fromDocumentation = true,

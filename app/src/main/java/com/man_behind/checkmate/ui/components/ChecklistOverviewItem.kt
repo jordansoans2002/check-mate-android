@@ -3,7 +3,9 @@ package com.man_behind.checkmate.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,12 +29,17 @@ import com.man_behind.checkmate.data.model.ChecklistOverview
 fun ChecklistOverviewItem(
     modifier: Modifier = Modifier,
     item: ChecklistOverview,
+    isSelected: Boolean = false,
     onClick: (Long) -> Unit,
+    onLongClick: (Long) -> Unit,
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clickable { onClick(item.id) }
+            .combinedClickable(
+                onClick = { onClick(item.id) },
+                onLongClick = { onLongClick(item.id) }
+            )
             .background(MaterialTheme.colorScheme.surfaceVariant)
     ) {
 
@@ -100,6 +107,17 @@ fun ChecklistOverviewItem(
                 )
             }
         }
+
+        if (isSelected) {
+            Box(
+                modifier = Modifier.matchParentSize()
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                    .border(
+                        width = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+            )
+        }
     }
 }
 
@@ -115,6 +133,7 @@ fun ChecklistOverviewItemPreview() {
             createdOn = "15-03-26",
             lastModifiedOn = "15/03/25",
         ),
-        onClick = { }
+        onClick = { },
+        onLongClick = { }
     )
 }

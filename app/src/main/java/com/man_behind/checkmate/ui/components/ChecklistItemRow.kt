@@ -249,8 +249,8 @@ fun ChecklistItemRowPreview() {
         question = "This is a sample question. Do you have any questions about it?",
         guidelines = "Guidelines",
         options = listOf(
-            ChecklistItemOption(1, "Option 1"),
-            ChecklistItemOption(2, "Option 2"),
+            ChecklistItemOption(1,  0,"Option 1"),
+            ChecklistItemOption(2,  1,"Option 2"),
         ),
         selectedOptionId = 2,
         fromDocumentation = true,

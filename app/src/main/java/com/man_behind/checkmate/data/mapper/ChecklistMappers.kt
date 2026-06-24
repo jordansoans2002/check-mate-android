@@ -16,7 +16,7 @@ import com.man_behind.checkmate.data.model.ChecklistSection
 import java.time.format.DateTimeFormatter
 
 fun ChecklistItemOptionEntity.toModel(): ChecklistItemOption =
-    ChecklistItemOption(id = id, text = text)
+    ChecklistItemOption(id = id, position = position, text = text)
 
 fun ChecklistItemImageEntity.toModel(): ChecklistItemImages =
     ChecklistItemImages(id = id, uri = uri.toUri())
