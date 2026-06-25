@@ -3,321 +3,605 @@ package com.man_behind.checkmate.utils
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
+import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
-import android.util.Base64
-import android.view.View
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import com.man_behind.checkmate.data.local.db.entity.ChecklistWithDetails
-import java.io.ByteArrayOutputStream
+import android.os.Handler
+import android.os.Looper
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
+import com.man_behind.checkmate.data.model.Checklist
 import java.io.File
 import java.io.FileOutputStream
-import kotlin.math.ceil
-import androidx.core.graphics.scale
-import com.man_behind.checkmate.data.model.Checklist
+import kotlin.concurrent.thread
+import kotlin.math.min
 
 /**
- * Exports a [ChecklistWithDetails] to a PDF file using [android.graphics.pdf.PdfDocument].
+ * Exports a [Checklist] to a PDF file using [PdfDocument] and Canvas drawing.
  *
- * No third-party dependencies, no PrintDocumentAdapter callbacks.
- * The WebView renders HTML into memory; each page is drawn onto a PdfDocument canvas.
+ * Everything is drawn as vector graphics (text, lines, shapes) so the output is
+ * always crisp regardless of zoom level. Images are the only rasterized content.
  *
- * Usage (must be called on the main thread):
+ * No WebView — runs entirely on a background thread, so [export] can be called
+ * from any coroutine without wrapping in suspendCancellableCoroutine.
  *
- *   val exporter = ChecklistPdfExporter(context)
- *   exporter.export(checklistWithDetails, outputFile) { success ->
- *       // runs on the main thread
- *   }
- *   // later, e.g. in ViewModel.onCleared():
- *   exporter.release()
+ * Usage:
+ *   exporter.export(checklist, outputFile) { success -> ... }
+ *   // onComplete is always called on the main thread
  */
 class ChecklistPdfExporter(private val context: Context) {
 
-    private var webView: WebView? = null
+    // ── Page geometry — A4 at 72 dpi (1 unit = 1 PDF point = 1/72 inch) ─────
+    private val PW = 595          // page width  (210 mm)
+    private val PH = 842          // page height (297 mm)
+    private val M  = 36f          // margin (~0.5 in)
+    private val CW = PW - M * 2  // content width
 
-    // A4 at 96 dpi (standard WebView / CSS pixel density)
-    private val pageWidthPx = 794   // 210 mm → 794 px @ 96 dpi
-    private val pageHeightPx = 1123  // 297 mm → 1123 px @ 96 dpi
+    // ── Palette ───────────────────────────────────────────────────────────────
+    private val ORANGE        = Color.rgb(0xE0, 0x5A, 0x1E)
+    private val ORANGE_DARK   = Color.rgb(0xC0, 0x4A, 0x10)
+    private val ORANGE_TINT   = Color.rgb(0xFF, 0xF4, 0xEF)
+    private val GUIDE_BG      = Color.rgb(0x4A, 0x37, 0x28)  // dark warm brown, matches RISQ guide boxes
+    private val TEXT          = Color.rgb(0x1A, 0x1A, 0x1A)
+    private val MUTED         = Color.rgb(0x66, 0x66, 0x66)
+    private val BORDER        = Color.rgb(0xCC, 0xCC, 0xCC)
+    private val BORDER_LIGHT  = Color.rgb(0xE8, 0xE8, 0xE8)
+    private val DOC_BG        = Color.rgb(0xDB, 0xEA, 0xFE)
+    private val DOC_FG        = Color.rgb(0x1D, 0x4E, 0xD8)
+    private val INSP_BG       = Color.rgb(0xDC, 0xFC, 0xE7)
+    private val INSP_FG       = Color.rgb(0x15, 0x80, 0x3D)
 
-    // -------------------------------------------------------------------------
-    // Public API
-    // -------------------------------------------------------------------------
+    // ── Typefaces ─────────────────────────────────────────────────────────────
+    private val REGULAR = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+    private val BOLD    = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+    private val ITALIC  = Typeface.create(Typeface.SANS_SERIF, Typeface.ITALIC)
 
-    /**
-     * Render [checklist] to [outputFile] as a multi-page A4 PDF.
-     * [onComplete] is called on the main thread.
-     */
-    fun export(
-        checklist: Checklist,
-        outputFile: File,
-        onComplete: (success: Boolean) -> Unit
+    // ── Intermediate data classes ─────────────────────────────────────────────
+    // Decouple the Renderer from the domain model so it works even if the
+    // domain classes change shape.
+
+    private data class RenderOption(val id: Long, val position: Int, val text: String)
+
+    private data class RenderItem(
+        val number: String,
+        val question: String,
+        val guidelines: String?,
+        val fromDocumentation: Boolean,
+        val onInspection: Boolean,
+        val options: List<RenderOption>,
+        val selectedOptionId: Long?,
+        val comment: String,
+        val actionTaken: String,
+        val imageUris: List<String>,
+    )
+
+    private data class RenderSection(
+        val number: Int,
+        val name: String,
+        val comments: String,
+        val items: List<RenderItem>,
+    )
+
+    // ── Public API ────────────────────────────────────────────────────────────
+
+    fun export(checklist: Checklist, outputFile: File, onComplete: (Boolean) -> Unit) {
+        thread(name = "pdf-export") {
+            val success = runCatching {
+                val sections = checklist.sections
+                    .sortedBy { it.position }
+                    .mapIndexed { si, section ->
+                        RenderSection(
+                            number   = si + 1,
+                            name     = section.name,
+                            comments = section.comments,
+                            items    = section.items
+                                .sortedBy { it.position }
+                                .mapIndexed { ii, item ->
+                                    RenderItem(
+                                        number            = "${si + 1}.${ii + 1}",
+                                        question          = item.question,
+                                        guidelines        = item.guidelines,
+                                        fromDocumentation = item.fromDocumentation,
+                                        onInspection      = item.onInspection,
+                                        options           = item.options.map {
+                                            RenderOption(it.id, it.position, it.text)
+                                        },
+                                        selectedOptionId  = item.selectedOptionId,
+                                        comment           = item.comment,
+                                        actionTaken       = item.actionTaken,
+                                        imageUris         = item.images.map { it.uri.toString() },
+                                    )
+                                }
+                        )
+                    }
+
+                val pdf = Renderer(checklist.name, checklist.comments, sections).build()
+                FileOutputStream(outputFile).use { pdf.writeTo(it) }
+                pdf.close()
+            }.isSuccess
+
+            Handler(Looper.getMainLooper()).post { onComplete(success) }
+        }
+    }
+
+    /** No WebView to clean up — kept for call-site compatibility. */
+    fun release() = Unit
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Renderer
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private inner class Renderer(
+        private val checklistName: String,
+        private val checklistComments: String,
+        private val sections: List<RenderSection>,
     ) {
-        val html = buildHtml(checklist)
+        // ── Page state ────────────────────────────────────────────────────────
+        private val pdf     = PdfDocument()
+        private var page:  PdfDocument.Page? = null
+        private var canvas: Canvas            = Canvas()
+        private var y       = M
+        private var pageNum = 0
 
-        // WebView MUST be created on the main thread.
-        // We give it an explicit layout size so contentHeight is meaningful.
-        val wv =  try {
-            WebView(context).also { webView = it }
-        } catch (e: Exception) {
-            onComplete(false)
-            return
-        }
+        // Item card state — set when starting a card, read when finishing it
+        private var cardTop = 0f
 
-        wv.settings.apply {
-            javaScriptEnabled = false
-            allowFileAccess = true
-            allowContentAccess = true
-            // Match our target page width so the CSS layout is stable
-            useWideViewPort = true
-            loadWithOverviewMode = false
-        }
+        // Inner item margins
+        private val IL = M + 10f         // inner left  (inside card)
+        private val IR = PW - M - 8f    // inner right
+        private val IW = IR - IL        // inner width
 
-        // Size the WebView to exactly one page wide; height is arbitrary —
-        // we'll read contentHeight after the page finishes loading.
-        wv.measure(
-            View.MeasureSpec.makeMeasureSpec(pageWidthPx, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        )
-        wv.layout(0, 0, pageWidthPx, pageHeightPx)
+        init { newPage() }
 
-        wv.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView, url: String) {
-                // Re-measure now that HTML content is available
-                view.measure(
-                    View.MeasureSpec.makeMeasureSpec(pageWidthPx, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                )
-                val totalHeight = view.measuredHeight.takeIf { it > 0 }
-                    ?: (view.contentHeight * view.scale).toInt()
+        // ── Page management ───────────────────────────────────────────────────
 
-                view.layout(0, 0, pageWidthPx, totalHeight)
-                renderToPdf(view, totalHeight, outputFile, onComplete)
+        private fun newPage() {
+            page?.let {
+                drawPageFooter()
+                pdf.finishPage(it)
             }
+            pageNum++
+            val info = PdfDocument.PageInfo.Builder(PW, PH, pageNum).create()
+            page = pdf.startPage(info).also { canvas = it.canvas }
+            canvas.drawColor(Color.WHITE)
+            y = M
+            if (pageNum > 1) drawPageHeader()
         }
 
-        wv.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
-    }
+        /** Starts a new page if fewer than [needed] points remain. */
+        private fun need(needed: Float) {
+            if (y + needed > PH - M - 16f) newPage()
+        }
 
-    /** Destroy the internal WebView. Call from Fragment.onDestroyView / ViewModel.onCleared. */
-    fun release() {
-        webView?.destroy()
-        webView = null
-    }
+        private fun drawPageHeader() {
+            val p = tp(7.5f, ITALIC, MUTED)
+            canvas.drawText(checklistName, M, y + 8f, p)
+            canvas.drawLine(M, y + 12f, PW - M, y + 12f, stroke(BORDER_LIGHT, 0.5f))
+            y += 20f
+        }
 
-    // -------------------------------------------------------------------------
-    // PDF rendering  (no PrintDocumentAdapter — works on all API levels)
-    // -------------------------------------------------------------------------
+        private fun drawPageFooter() {
+            val bottom = PH - M / 2f
+            canvas.drawLine(M, bottom - 10f, PW - M, bottom - 10f, stroke(BORDER_LIGHT, 0.5f))
+            val p = tp(7.5f, REGULAR, MUTED)
+            val rightText = "Page $pageNum"
+            canvas.drawText(rightText, PW - M - p.measureText(rightText), bottom, p)
+        }
 
-    private fun renderToPdf(
-        webView: WebView,
-        totalHeightPx: Int,
-        outputFile: File,
-        onComplete: (Boolean) -> Unit
-    ) {
-        val pageCount = ceil(totalHeightPx.toFloat() / pageHeightPx).toInt().coerceAtLeast(1)
-        val pdf = PdfDocument()
+        fun finish(): PdfDocument {
+            page?.let { drawPageFooter(); pdf.finishPage(it); page = null }
+            return pdf
+        }
 
-        try {
-            repeat(pageCount) { pageIndex ->
-                val pageInfo =
-                    PdfDocument.PageInfo.Builder(pageWidthPx, pageHeightPx, pageIndex + 1).create()
-                val page = pdf.startPage(pageInfo)
+        // ── Build ─────────────────────────────────────────────────────────────
 
-                // Translate the canvas upward so that this page's slice is visible
-                page.canvas.translate(0f, -(pageIndex * pageHeightPx).toFloat())
-                webView.draw(page.canvas)
-
-                pdf.finishPage(page)
+        fun build(): PdfDocument {
+            drawTitleBlock()
+            sections.forEach { section ->
+                drawSectionHeader(section)
+                section.items.forEach { drawItem(it) }
             }
-
-            FileOutputStream(outputFile).use { pdf.writeTo(it) }
-            onComplete(true)
-        } catch (e: Exception) {
-            onComplete(false)
-        } finally {
-            pdf.close()
+            return finish()
         }
-    }
-
-    // -------------------------------------------------------------------------
-    // HTML generation
-    // -------------------------------------------------------------------------
-
-    private fun buildHtml(data: Checklist): String {
-        val sb = StringBuilder()
-        sb.append(htmlHead(data.name))
-        sb.append("<body>")
 
         // ── Title block ───────────────────────────────────────────────────────
-        sb.append("""<div class="title-block"><h1>${data.name.escapeHtml()}</h1>""")
-        if (data.comments.isNotBlank()) {
-            sb.append("""<p class="checklist-comments">${data.comments.escapeHtml()}</p>""")
-        }
-        sb.append("</div>")
 
-        // ── Sections ──────────────────────────────────────────────────────────
-        data.sections.sortedBy { it.position }.forEachIndexed { sIdx, section ->
-            sb.append("""<div class="section">""")
-            sb.append("""<h2 class="section-title">${section.name.escapeHtml()}</h2>""")
+        private fun drawTitleBlock() {
+            // Large orange title
+            val titleP = tp(22f, BOLD, ORANGE)
+            val titleL = sl(checklistName, titleP, CW.toInt())
+            canvas.save()
+            canvas.translate(M, y)
+            titleL.draw(canvas)
+            canvas.restore()
+            y += titleL.height + 5f
 
-            if (section.comments.isNotBlank()) {
-                sb.append("""<p class="section-comments">${section.comments.escapeHtml()}</p>""")
+            if (checklistComments.isNotBlank()) {
+                val cp = tp(9f, REGULAR, MUTED)
+                val cl = sl(checklistComments, cp, CW.toInt())
+                canvas.save()
+                canvas.translate(M, y)
+                cl.draw(canvas)
+                canvas.restore()
+                y += cl.height + 5f
             }
 
-            section.items.sortedBy { it.position }
-                .forEachIndexed { iIdx, item ->
-                    val qNum = "${sIdx + 1}.${iIdx + 1}"
-
-                    sb.append("""<div class="item">""")
-
-                    // Header: number + question + badges
-                    sb.append("""<div class="item-header">""")
-                    sb.append("""<span class="q-number">$qNum</span>""")
-                    sb.append("""<span class="q-text">${item.question.escapeHtml()}</span>""")
-                    if (item.fromDocumentation || item.onInspection) {
-                        sb.append("""<div class="q-badges">""")
-                        if (item.fromDocumentation) sb.append("""<span class="badge badge-doc">Doc</span>""")
-                        if (item.onInspection) sb.append("""<span class="badge badge-insp">Inspection</span>""")
-                        sb.append("</div>")
-                    }
-                    sb.append("</div>") // item-header
-
-                    // Guidelines
-                    if (!item.guidelines.isNullOrBlank()) {
-                        sb.append("""<div class="guide-box"><b>Guide:</b> ${item.guidelines.escapeHtml()}</div>""")
-                    }
-
-                    // Options
-                    val sortedOptions = item.options.sortedBy { it.position }
-                    if (sortedOptions.isNotEmpty()) {
-                        sb.append("""<ul class="options">""")
-                        sortedOptions.forEach { option ->
-                            val selected = option.id == item.selectedOptionId
-                            val cls = if (selected) "checked" else "unchecked"
-                            val symbol = if (selected) "&#10003;" else "&nbsp;"
-                            sb.append("""<li class="option $cls"><span class="checkbox">$symbol</span><span class="option-text">${option.text.escapeHtml()}</span></li>""")
-                        }
-                        sb.append("</ul>")
-                    }
-
-                    // Comment (only when non-blank)
-                    if (item.comment.isNotBlank()) {
-                        sb.append("""<div class="field-row"><span class="field-label">Comment:</span><span class="field-value">${item.comment.escapeHtml()}</span></div>""")
-                    }
-
-                    // Action taken (only when non-blank)
-                    if (item.actionTaken.isNotBlank()) {
-                        sb.append("""<div class="field-row"><span class="field-label">Action taken:</span><span class="field-value">${item.actionTaken.escapeHtml()}</span></div>""")
-                    }
-
-                    // Images
-                    if (item.images.isNotEmpty()) {
-                        sb.append("""<div class="images">""")
-                        item.images.forEach { imgEntity ->
-                            uriToBase64(imgEntity.uri.toString())?.let { b64 ->
-                                sb.append("""<img src="data:image/jpeg;base64,$b64" class="item-image" alt=""/>""")
-                            }
-                        }
-                        sb.append("</div>")
-                    }
-
-                    sb.append("</div>") // item
-                }
-
-            sb.append("</div>") // section
+            // Thick orange rule under the title
+            canvas.drawRect(M, y, PW - M, y + 2.5f, fill(ORANGE))
+            y += 18f
         }
 
-        sb.append("</body></html>")
-        return sb.toString()
+        // ── Section header ────────────────────────────────────────────────────
+
+        private fun drawSectionHeader(section: RenderSection) {
+            val label = "${section.number}.  ${section.name}"
+            val lp    = tp(11f, BOLD, Color.WHITE)
+            val ll    = sl(label, lp, (CW - 20f).toInt())
+            val boxH  = ll.height + 14f
+
+            need(boxH + (if (section.comments.isNotBlank()) 20f else 0f) + 16f)
+
+            // Rounded orange pill
+            canvas.drawRoundRect(RectF(M, y, PW - M, y + boxH), 4f, 4f, fill(ORANGE))
+            canvas.save()
+            canvas.translate(M + 10f, y + 7f)
+            ll.draw(canvas)
+            canvas.restore()
+            y += boxH
+
+            if (section.comments.isNotBlank()) {
+                y += 5f
+                val cp = tp(8.5f, ITALIC, MUTED)
+                val cl = sl(section.comments, cp, CW.toInt())
+                canvas.save()
+                canvas.translate(M + 4f, y)
+                cl.draw(canvas)
+                canvas.restore()
+                y += cl.height
+            }
+            y += 10f
+        }
+
+        // ── Item card ─────────────────────────────────────────────────────────
+
+        private fun drawItem(item: RenderItem) {
+            val est = estimateItemHeight(item)
+            // If the whole card fits, keep it on one page. If it's taller than a
+            // full page (very long item), just start a new page and let it overflow.
+            if (est <= PH - M * 2 - 40f) need(est)
+
+            cardTop   = y
+            var iy    = y + 10f       // inner Y cursor
+
+            // ── Question header row ──────────────────────────────────────────
+
+            val qNumP  = tp(10.5f, BOLD, ORANGE)
+            val qNumW  = qNumP.measureText("${item.number}  ").coerceAtLeast(26f)
+
+            // Reserve space for badges on the right
+            var badgesReserved = 0f
+            if (item.fromDocumentation) badgesReserved += measureBadge("Doc",   7.5f) + 4f
+            if (item.onInspection)      badgesReserved += measureBadge("Insp.", 7.5f) + 4f
+
+            val qTextW  = (IW - qNumW - badgesReserved - 4f).toInt().coerceAtLeast(60)
+            val qTextP  = tp(10.5f, BOLD, TEXT)
+            val qTextL  = sl(item.question, qTextP, qTextW)
+            val qRowH   = qTextL.height.toFloat().coerceAtLeast(15f)
+
+            // Question number
+            canvas.drawText(item.number, IL, iy + qNumP.textSize, qNumP)
+
+            // Question text
+            canvas.save()
+            canvas.translate(IL + qNumW, iy)
+            qTextL.draw(canvas)
+            canvas.restore()
+
+            // Badges — right aligned
+            var bx = IR - 2f
+            if (item.onInspection) {
+                bx -= drawBadge("Insp.", bx, iy + 2f, INSP_BG, INSP_FG, 7.5f)
+                bx -= 4f
+            }
+            if (item.fromDocumentation) {
+                drawBadge("Doc", bx, iy + 2f, DOC_BG, DOC_FG, 7.5f)
+            }
+
+            iy += qRowH + 9f
+
+            // ── Guide to Inspection box ──────────────────────────────────────
+
+            if (!item.guidelines.isNullOrBlank()) {
+                val headerP  = tp(8f, BOLD, Color.WHITE)
+                val bodyP    = tp(8f, REGULAR, Color.rgb(0xE8, 0xD8, 0xCC))
+                val bodyL    = sl(item.guidelines, bodyP, (IW - 12f).toInt())
+                val guideH   = 14f + bodyL.height + 10f
+
+                val gr = RectF(IL, iy, IR, iy + guideH)
+                canvas.drawRoundRect(gr, 3f, 3f, fill(GUIDE_BG))
+
+                canvas.drawText("Guide to Inspection:", IL + 6f, iy + 11f, headerP)
+                canvas.save()
+                canvas.translate(IL + 6f, iy + 14f)
+                bodyL.draw(canvas)
+                canvas.restore()
+
+                iy += guideH + 9f
+            }
+
+            // ── Options ──────────────────────────────────────────────────────
+
+            if (item.options.isNotEmpty()) {
+                item.options.sortedBy { it.position }.forEach { option ->
+                    iy = drawOption(option.text, option.id == item.selectedOptionId, iy)
+                }
+                iy += 4f
+            }
+
+            // ── Comment ──────────────────────────────────────────────────────
+
+            if (item.comment.isNotBlank()) {
+                val sep = RectF(IL, iy, IR, iy + 0.6f)
+                canvas.drawRect(sep, fill(BORDER_LIGHT))
+                iy += 6f
+                iy = drawFieldRow("Comment:", item.comment, iy)
+                iy += 4f
+            }
+
+            // ── Action taken ─────────────────────────────────────────────────
+
+            if (item.actionTaken.isNotBlank()) {
+                if (item.comment.isBlank()) {
+                    val sep = RectF(IL, iy, IR, iy + 0.6f)
+                    canvas.drawRect(sep, fill(BORDER_LIGHT))
+                    iy += 6f
+                }
+                iy = drawFieldRow("Action taken:", item.actionTaken, iy)
+                iy += 4f
+            }
+
+            // ── Images ───────────────────────────────────────────────────────
+
+            if (item.imageUris.isNotEmpty()) {
+                iy = drawImages(item.imageUris, iy)
+            }
+
+            iy += 10f  // bottom inner padding
+
+            // ── Card chrome — drawn last because we now know the card height ──
+
+            // Outer border
+            canvas.drawRoundRect(
+                RectF(M, cardTop, PW - M, iy),
+                3f, 3f,
+                stroke(BORDER, 0.8f)
+            )
+            // Left orange accent
+            val accentPath = Path().apply {
+                // Follows the left rounded corner so it aligns with the border
+                moveTo(M + 3f, cardTop + 3f)
+                lineTo(M + 3f, iy - 3f)
+            }
+            canvas.drawPath(accentPath, mk(ORANGE, 4f, cap = Paint.Cap.ROUND))
+
+            y = iy + 8f
+        }
+
+        // ── Option ────────────────────────────────────────────────────────────
+
+        private fun drawOption(text: String, selected: Boolean, sy: Float): Float {
+            val boxSz  = 10.5f
+            val textP  = if (selected) tp(9.5f, BOLD, ORANGE_DARK) else tp(9.5f, REGULAR, TEXT)
+            val textL  = sl(text, textP, (IW - boxSz - 10f).toInt().coerceAtLeast(1))
+            val rowH   = textL.height.toFloat().coerceAtLeast(boxSz + 2f)
+            val boxY   = sy + (rowH - boxSz) / 2f
+            val boxR   = RectF(IL, boxY, IL + boxSz, boxY + boxSz)
+
+            if (selected) {
+                // Tinted fill + orange border
+                canvas.drawRoundRect(boxR, 2f, 2f, fill(ORANGE_TINT))
+                canvas.drawRoundRect(boxR, 2f, 2f, stroke(ORANGE, 1.3f))
+
+                // Tick mark — drawn as a path for crispness
+                val tick = Path().apply {
+                    moveTo(IL + 2f,        boxY + boxSz * 0.50f)
+                    lineTo(IL + boxSz * 0.42f, boxY + boxSz - 2.3f)
+                    lineTo(IL + boxSz - 2f, boxY + 2.3f)
+                }
+                canvas.drawPath(tick, mk(ORANGE, 1.6f, cap = Paint.Cap.ROUND, join = Paint.Join.ROUND))
+            } else {
+                canvas.drawRoundRect(boxR, 2f, 2f, stroke(MUTED, 0.9f))
+            }
+
+            canvas.save()
+            canvas.translate(IL + boxSz + 7f, sy)
+            textL.draw(canvas)
+            canvas.restore()
+
+            return sy + rowH + 4f
+        }
+
+        // ── Field row ─────────────────────────────────────────────────────────
+
+        private fun drawFieldRow(label: String, value: String, sy: Float): Float {
+            val lp = tp(9f, BOLD, MUTED)
+            val lw = lp.measureText(label) + 5f
+            val vp = tp(9f, REGULAR, TEXT)
+            val vl = sl(value, vp, (IW - lw).toInt().coerceAtLeast(1))
+
+            canvas.drawText(label, IL, sy + lp.textSize, lp)
+            canvas.save()
+            canvas.translate(IL + lw, sy)
+            vl.draw(canvas)
+            canvas.restore()
+
+            return sy + vl.height.toFloat()
+        }
+
+        // ── Images ────────────────────────────────────────────────────────────
+
+        private fun drawImages(uris: List<String>, sy: Float): Float {
+            val gap   = 6f
+            val maxW  = ((IW - gap) / 2f).coerceAtMost(160f)
+            val maxH  = 115f
+            var curX  = IL
+            var curY  = sy + 4f
+            var rowH  = 0f
+
+            uris.forEach { uri ->
+                val bmp = loadBitmap(uri, maxW.toInt(), maxH.toInt()) ?: return@forEach
+                val bW  = bmp.width.toFloat()
+                val bH  = bmp.height.toFloat()
+
+                // Wrap to next row if this image doesn't fit
+                if (curX + bW > IR && curX > IL) {
+                    curY += rowH + gap; curX = IL; rowH = 0f
+                }
+
+                // Border + image
+                canvas.drawRoundRect(
+                    RectF(curX - 1f, curY - 1f, curX + bW + 1f, curY + bH + 1f),
+                    3f, 3f, stroke(BORDER, 0.7f)
+                )
+                canvas.drawBitmap(
+                    bmp, null,
+                    RectF(curX, curY, curX + bW, curY + bH),
+                    Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+                )
+
+                rowH = rowH.coerceAtLeast(bH)
+                curX += bW + gap
+            }
+
+            return curY + rowH + 6f
+        }
+
+        // ── Badge ─────────────────────────────────────────────────────────────
+
+        /**
+         * Draws a badge with its right edge at [x].
+         * Returns the width of the drawn badge.
+         */
+        private fun drawBadge(
+            text: String, x: Float, y: Float,
+            bg: Int, fg: Int, textSize: Float
+        ): Float {
+            val p   = tp(textSize, BOLD, fg)
+            val tw  = p.measureText(text)
+            val ph  = 5f; val pv = 2.5f
+            val bw  = tw + ph * 2f
+            val bh  = textSize + pv * 2f + 1f
+            val rx  = x - bw
+            canvas.drawRoundRect(RectF(rx, y, rx + bw, y + bh), bh / 2f, bh / 2f, fill(bg))
+            canvas.drawText(text, rx + ph, y + pv + textSize, p)
+            return bw
+        }
+
+        private fun measureBadge(text: String, textSize: Float) =
+            tp(textSize, BOLD, TEXT).measureText(text) + 10f
+
+        // ── Item height estimation (drives pagination) ─────────────────────────
+
+        private fun estimateItemHeight(item: RenderItem): Float {
+            var h = 28f  // top padding + question row baseline
+
+            val qNumW = 28f
+            val qW    = (IW - qNumW - 50f).toInt().coerceAtLeast(60)
+            h += sl(item.question, tp(10.5f, BOLD, TEXT), qW).height + 9f
+
+            if (!item.guidelines.isNullOrBlank()) {
+                h += sl(item.guidelines, tp(8f, REGULAR, TEXT), (IW - 12f).toInt()).height + 33f
+            }
+
+            if (item.options.isNotEmpty()) {
+                item.options.forEach { opt ->
+                    h += sl(opt.text, tp(9.5f, REGULAR, TEXT), (IW - 20f).toInt()).height + 4f
+                }
+                h += 4f
+            }
+
+            if (item.comment.isNotBlank()) {
+                h += sl(item.comment, tp(9f, REGULAR, TEXT), (IW - 90f).toInt()).height + 13f
+            }
+
+            if (item.actionTaken.isNotBlank()) {
+                h += sl(item.actionTaken, tp(9f, REGULAR, TEXT), (IW - 110f).toInt()).height + 13f
+            }
+
+            if (item.imageUris.isNotEmpty()) h += 130f
+
+            h += 10f  // bottom padding
+            return h
+        }
+
+        // ── Paint factories ───────────────────────────────────────────────────
+
+        private fun fill(color: Int) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = color
+            style = Paint.Style.FILL
+        }
+
+        private fun stroke(color: Int, w: Float) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = color
+            strokeWidth = w
+            style = Paint.Style.STROKE
+        }
+
+        private fun mk(
+            color: Int,
+            w: Float,
+            cap:  Paint.Cap  = Paint.Cap.ROUND,
+            join: Paint.Join = Paint.Join.ROUND,
+        ) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = color
+            strokeWidth = w
+            style = Paint.Style.STROKE
+            strokeCap = cap
+            strokeJoin = join
+        }
+
+        private fun tp(size: Float, tf: Typeface, color: Int) =
+            TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                textSize  = size
+                typeface  = tf
+                this.color = color
+            }
+
+        private fun sl(text: String, paint: TextPaint, width: Int): StaticLayout =
+            StaticLayout.Builder
+                .obtain(text, 0, text.length, paint, width.coerceAtLeast(1))
+                .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                .setLineSpacing(0.5f, 1.15f)
+                .setIncludePad(false)
+                .build()
     }
 
-    // -------------------------------------------------------------------------
-    // CSS / HTML head
-    // -------------------------------------------------------------------------
+    // ── Bitmap loading ────────────────────────────────────────────────────────
 
-    private fun htmlHead(title: String) = """
-        <!DOCTYPE html><html lang="en"><head>
-        <meta charset="UTF-8"/>
-        <title>${title.escapeHtml()}</title>
-        <style>
-        *{box-sizing:border-box;margin:0;padding:0}
-        body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;color:#1a1a1a;background:#fff;padding:16px}
-
-        /* Title */
-        .title-block{border-bottom:3px solid #e05a1e;margin-bottom:20px;padding-bottom:10px}
-        .title-block h1{font-size:18pt;color:#e05a1e;font-weight:bold}
-        .checklist-comments{margin-top:6px;color:#555;font-size:10pt}
-
-        /* Section */
-        .section{margin-bottom:20px}
-        .section-title{font-size:13pt;font-weight:bold;color:#fff;background:#e05a1e;padding:6px 10px;border-radius:3px;margin-bottom:8px}
-        .section-comments{font-size:10pt;color:#555;margin-bottom:6px;padding-left:4px}
-
-        /* Item card */
-        .item{border:1px solid #ddd;border-left:4px solid #e05a1e;border-radius:3px;padding:10px 12px;margin-bottom:10px}
-        .item-header{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px}
-        .q-number{font-weight:bold;color:#e05a1e;white-space:nowrap;min-width:30px;font-size:11pt}
-        .q-text{font-weight:bold;flex:1;line-height:1.4}
-        .q-badges{display:flex;gap:4px;flex-shrink:0}
-        .badge{font-size:8pt;padding:2px 6px;border-radius:10px;font-weight:bold}
-        .badge-doc{background:#dbeafe;color:#1d4ed8}
-        .badge-insp{background:#dcfce7;color:#15803d}
-
-        /* Guide */
-        .guide-box{background:#f9f5f0;border:1px solid #f0d9c8;border-radius:3px;padding:6px 10px;font-size:10pt;color:#555;margin-bottom:8px;line-height:1.4}
-
-        /* Options */
-        .options{list-style:none;margin-bottom:8px}
-        .option{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:10.5pt}
-        .checkbox{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border:1.5px solid #555;border-radius:2px;font-size:12pt;flex-shrink:0}
-        .option.checked .checkbox{border-color:#e05a1e;background:#fff4ef;color:#e05a1e;font-weight:bold}
-        .option.checked .option-text{font-weight:bold;color:#c04a10}
-
-        /* Comment / Action */
-        .field-row{display:flex;gap:6px;margin-bottom:5px;font-size:10.5pt;line-height:1.4}
-        .field-label{font-weight:bold;color:#555;white-space:nowrap}
-        .field-value{flex:1}
-
-        /* Images */
-        .images{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-        .item-image{max-width:220px;max-height:180px;border:1px solid #ccc;border-radius:4px;object-fit:cover}
-        </style></head>
-    """.trimIndent()
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
-
-    /**
-     * Reads a content:// or file:// URI and returns a Base64 JPEG string,
-     * or null if the image cannot be loaded.
-     */
-    private fun uriToBase64(uriString: String): String? = runCatching {
-        val uri = Uri.parse(uriString)
-        val stream = when (uri.scheme) {
+    private fun loadBitmap(uriStr: String, maxW: Int, maxH: Int): Bitmap? = runCatching {
+        val uri = Uri.parse(uriStr)
+        val src = when (uri.scheme) {
             "content" -> context.contentResolver.openInputStream(uri)
-            "file" -> File(uri.path!!).inputStream()
-            else -> return null
-        } ?: return null
+            "file"    -> File(uri.path!!).inputStream()
+            else      -> return null
+        }?.use { BitmapFactory.decodeStream(it) } ?: return null
 
-        val bitmap = stream.use { BitmapFactory.decodeStream(it) } ?: return null
-        val scaled = scaleBitmap(bitmap, maxDimension = 1024)
+        // Scale down to fit within maxW × maxH, never upscale
+        val scale = min(maxW.toFloat() / src.width, maxH.toFloat() / src.height)
+            .coerceAtMost(1f)
 
-        ByteArrayOutputStream().also { out ->
-            scaled.compress(Bitmap.CompressFormat.JPEG, 80, out)
-        }.toByteArray().let { Base64.encodeToString(it, Base64.NO_WRAP) }
+        if (scale >= 1f) src
+        else Bitmap.createScaledBitmap(
+            src,
+            (src.width  * scale).toInt(),
+            (src.height * scale).toInt(),
+            true
+        )
     }.getOrNull()
-
-    private fun scaleBitmap(src: Bitmap, maxDimension: Int): Bitmap {
-        val max = maxOf(src.width, src.height)
-        if (max <= maxDimension) return src
-        val scale = maxDimension.toFloat() / max
-        return src.scale((src.width * scale).toInt(), (src.height * scale).toInt())
-    }
-
-    private fun String.escapeHtml() = replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace("\"", "&quot;")
 }

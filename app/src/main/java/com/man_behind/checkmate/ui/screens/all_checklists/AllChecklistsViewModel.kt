@@ -50,7 +50,7 @@ class AllChecklistsViewModel @Inject constructor(
             initialValue = AllChecklistsUiState(isLoading = true)
         )
 
-    private var pdfExporter: ChecklistPdfExporter2? = null
+    private var pdfExporter: ChecklistPdfExporter? = null
 
     override fun onCleared() {
         pdfExporter?.release()
@@ -152,7 +152,7 @@ class AllChecklistsViewModel @Inject constructor(
         outputFile: File,
     ): Boolean = kotlinx.coroutines.suspendCancellableCoroutine { cont ->
         pdfExporter?.release()
-        pdfExporter = ChecklistPdfExporter2(context)
+        pdfExporter = ChecklistPdfExporter(context)
 
         // Export calls onComplete on the main thread already
         pdfExporter!!.export(checklist, outputFile) { success ->
