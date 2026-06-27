@@ -16,7 +16,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
@@ -28,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -58,6 +62,7 @@ import com.man_behind.checkmate.ui.components.GuidelineBottomSheet
 import com.man_behind.checkmate.ui.components.GuidelineTooltip
 import com.man_behind.checkmate.ui.components.ImageSourcePicker
 import com.man_behind.checkmate.ui.components.ImageViewerDialog
+import kotlinx.coroutines.flow.first
 import java.time.LocalDateTime
 
 @Composable
@@ -69,6 +74,8 @@ fun FillChecklistScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     var activeSectionId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var restoredPosition by rememberSaveable { mutableStateOf(false) }
+
     var showGuidelineTooltip by remember { mutableStateOf<String?>(null) }
     var showGuidelineBottomSheet by remember { mutableStateOf<String?>(null) }
     var showImageViewer by remember { mutableStateOf<Pair<List<Uri>, Int>?>(null) }
@@ -120,14 +127,38 @@ fun FillChecklistScreen(
         }
     }
 
+    LaunchedEffect(checklist) {
+        if (checklist != null && !restoredPosition) {
+            activeSectionId = checklist!!.lastModifiedSectionId
+            restoredPosition = true
+        }
+    }
+
     checklist?.let { checklist ->
         val activeSectionIndex = checklist.sections
             .indexOfFirst { it.id == activeSectionId }
             .let { if (it < 0) 0 else it }
 
+        val lastModifiedItemIndex = checklist.sections
+            .getOrNull(activeSectionIndex)
+            ?.let { section ->
+                section.items.indexOfFirst { it.id == section.lastModifiedItemId }
+                    .let { if (it < 0) 0 else it }
+            } ?: 0
+
+        val listState = rememberLazyListState()
+        LaunchedEffect(restoredPosition, activeSectionIndex) {
+            if (restoredPosition) {
+                snapshotFlow { listState.layoutInfo.totalItemsCount }
+                    .first { it > 0 }
+                listState.scrollToItem(lastModifiedItemIndex)
+            }
+        }
+
         FillChecklistContent(
             checklist = checklist,
             activeSectionIndex = activeSectionIndex,
+            listState = listState,
             onSectionChange = { activeSectionId = checklist.sections[activeSectionIndex + it].id },
             getController = { viewModel.getController(it) },
             onGuidelineClick = { text ->
@@ -197,6 +228,7 @@ fun FillChecklistScreen(
 fun FillChecklistContent(
     checklist: Checklist,
     activeSectionIndex: Int,
+    listState: LazyListState = rememberLazyListState(),
     onSectionChange: (Int) -> Unit,
     getController: (ChecklistItem) -> ChecklistItemEditController,
     onGuidelineClick: (String) -> Unit,
@@ -317,6 +349,7 @@ fun FillChecklistContent(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
+            state = listState,
         ) {
             items(
                 items = currentSection.items,
