@@ -8,13 +8,15 @@ import com.man_behind.checkmate.data.model.Checklist
 import com.man_behind.checkmate.data.repository.ChecklistRepository
 import com.man_behind.checkmate.data.repository.QuestionSetRepository
 import com.man_behind.checkmate.utils.ChecklistPdfExporter
-import com.man_behind.checkmate.utils.ChecklistPdfExporter2
+import com.man_behind.checkmate.utils.MediaManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
@@ -28,7 +30,8 @@ import javax.inject.Inject
 class AllChecklistsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val checklistRepository: ChecklistRepository,
-    private val questionSetRepository: QuestionSetRepository,
+    questionSetRepository: QuestionSetRepository,
+    private val mediaManager: MediaManager,
 ): ViewModel() {
 
     private val _state = MutableStateFlow(AllChecklistsUiState())
@@ -41,7 +44,6 @@ class AllChecklistsViewModel @Inject constructor(
             state.copy(
                 checklists = checklists,
                 questionSets = questionSets,
-                isLoading = false
             )
         }
         .stateIn(
@@ -49,6 +51,12 @@ class AllChecklistsViewModel @Inject constructor(
             SharingStarted.WhileSubscribed(5000),
             initialValue = AllChecklistsUiState(isLoading = true)
         )
+
+    private val _newChecklistId = MutableSharedFlow<Long>()
+    val newChecklistId = _newChecklistId.asSharedFlow()
+
+    var tempFiles = emptyList<File>()
+
 
     private var pdfExporter: ChecklistPdfExporter? = null
 
@@ -62,11 +70,13 @@ class AllChecklistsViewModel @Inject constructor(
 
     fun createChecklist(questionSetId: Long, name: String) {
         viewModelScope.launch {
+            _state.update { it.copy(isLoading = true) }
             val checklistId = checklistRepository.createChecklist(questionSetId,name)
             _state.update { it.copy(
-                newChecklistId = checklistId,
+                isLoading = false,
                 showCreateChecklistDialog = false,
             ) }
+            _newChecklistId.emit(checklistId)
         }
     }
 
@@ -88,7 +98,7 @@ class AllChecklistsViewModel @Inject constructor(
     }
 
     fun onExportClick() {
-        val ids = _state.value.selectedChecklists.toList()
+        val ids = state.value.selectedChecklists.toList()
         if (ids.isEmpty()) return
 
         _state.update { it.copy(isLoading = true) }
@@ -104,21 +114,25 @@ class AllChecklistsViewModel @Inject constructor(
         val checklist = checklistRepository.getChecklistById(id)
             .first()
         if (checklist == null) {
-            _state.update { it.copy(toast = "Checklist not found") }
+            _state.update { it.copy(isLoading = false, toast = "Checklist not found") }
             return
         }
 
         val tempFile = File(context.cacheDir, "export_${id}.pdf")
 
-        // ChecklistPdfExporter.export() calls back on the MAIN thread (WebView requirement).
         // We drive it from a coroutine using suspendCoroutine so the rest of the VM
         // stays coroutine-friendly.
         val success = renderPdf(checklist, tempFile)
 
+        Log.d("PDF", "Temp file size: ${tempFile.length()} bytes at ${tempFile.path}")
         if (success) {
-            _state.update { it.copy(tempFiles = listOf(tempFile)) }
+            tempFiles = listOf(tempFile)
+            _state.update { it.copy(
+                isLoading = false,
+                showSaveExportDialog = true,
+            ) }
         } else {
-            _state.update { it.copy(toast = "Failed to generate PDF") }
+            _state.update { it.copy(isLoading = false, toast = "Failed to generate PDF") }
         }
     }
 
@@ -135,11 +149,15 @@ class AllChecklistsViewModel @Inject constructor(
         }
 
         if (tempFiles.isEmpty()) {
-            _state.update { it.copy(toast = "Failed to generate PDFs") }
+            _state.update { it.copy(isLoading = false, toast = "Failed to generate PDFs") }
             return
         }
 
-        _state.update { it.copy(tempFiles = tempFiles) }
+        this.tempFiles = tempFiles
+        _state.update { it.copy(
+            isLoading = false,
+            showSaveExportDialog = true,
+        ) }
     }
 
     /**
@@ -156,16 +174,13 @@ class AllChecklistsViewModel @Inject constructor(
 
         // Export calls onComplete on the main thread already
         pdfExporter!!.export(checklist, outputFile) { success ->
-            if (cont.isActive) cont.resume(success) { cause, _, _ -> }
+            if (cont.isActive) cont.resume(success) { _, _, _ -> }
         }
     }
 
-    // ── SAF callbacks (called from the screen after the picker returns) ───────
-
     /** Single-file save: write the temp PDF into the URI the SAF picker gave us. */
     fun onSaveToUri(outputStream: OutputStream) {
-        val tempFiles = _state.value.tempFiles
-        if (tempFiles?.size != 1) return
+        if (tempFiles.size != 1) return
 
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
@@ -173,9 +188,15 @@ class AllChecklistsViewModel @Inject constructor(
                 outputStream.close()
                 tempFiles[0].delete()
             }.onSuccess {
-                _state.update { it.copy(isLoading = false, selectedChecklists = emptySet()) }
+                _state.update { it.copy(
+                    isLoading = false,
+                    selectedChecklists = emptySet(),
+                ) }
             }.onFailure { e ->
-                _state.update { it.copy(toast = "Could not save: ${e.message}") }
+                _state.update { it.copy(
+                    isLoading = false,
+                    toast = "Could not save: ${e.message}",
+                ) }
             }
         }
     }
@@ -185,7 +206,7 @@ class AllChecklistsViewModel @Inject constructor(
      * Each file is created via ContentResolver so no MANAGE_EXTERNAL_STORAGE is needed.
      */
     fun onSaveToFolder(contentResolver: android.content.ContentResolver, folderUri: android.net.Uri) {
-        val tempFiles = _state.value.tempFiles ?: return
+        if (tempFiles.isEmpty()) return
 
         viewModelScope.launch(Dispatchers.IO) {
             var saved = 0
@@ -208,30 +229,44 @@ class AllChecklistsViewModel @Inject constructor(
             if (saved > 0) {
                 _state.update {
                     it.copy(
+                        isLoading = false,
                         toast = "$saved PDF${if (saved > 1) "s" else ""} saved",
                         selectedChecklists = emptySet(),
                     )
                 }
             } else {
-                _state.update { it.copy(toast = "Failed to save files") }
+                _state.update { it.copy(
+                    isLoading = false,
+                    toast = "Failed to save files",
+                ) }
             }
         }
+    }
+
+    fun hideSaveExportDialog() {
+        _state.update { it.copy(showSaveExportDialog = false) }
     }
 
     fun onExportResultConsumed() {
         _state.update { it.copy(isLoading = false) }
     }
 
-    private fun String.sanitizeFileName() =
-        replace(Regex("[^a-zA-Z0-9 _-]"), "").trim().ifBlank { "checklist" }
+    fun onDeleteClick() {
+        val ids = _state.value.selectedChecklists.toList()
+        if (ids.isEmpty()) return
 
-    fun clearError() {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true) }
+
+            checklistRepository.getChecklistImageUris(ids)
+                .forEach { mediaManager.deleteFromAppStorage(it) }
+            checklistRepository.deleteChecklists(ids)
+
+            _state.update { it.copy(isLoading = false, selectedChecklists = emptySet()) }
+        }
+    }
+
+    fun clearToast() {
         _state.update { it.copy(toast = null) }
     }
-
-    fun clearNewChecklist() {
-        _state.update { it.copy(newChecklistId = null) }
-    }
-
-
 }

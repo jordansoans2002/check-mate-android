@@ -31,7 +31,7 @@ import javax.inject.Singleton
         ChecklistItemOptionEntity::class,
         ChecklistItemImageEntity::class
     ],
-    version = 3
+    version = 4
 )
 @TypeConverters(
     LocalDateTimeConverter::class

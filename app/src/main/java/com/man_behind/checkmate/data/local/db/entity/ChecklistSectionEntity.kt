@@ -21,7 +21,10 @@ import androidx.room3.PrimaryKey
             onDelete = ForeignKey.SET_DEFAULT
         )
     ],
-    indices = [Index("checklistId")]
+    indices = [
+        Index("checklistId"),
+        Index("lastModifiedItemId")
+    ]
 )
 data class ChecklistSectionEntity (
     @PrimaryKey(autoGenerate = true)

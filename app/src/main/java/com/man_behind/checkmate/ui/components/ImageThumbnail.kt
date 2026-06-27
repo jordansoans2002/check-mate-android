@@ -2,17 +2,14 @@ package com.man_behind.checkmate.ui.components
 
 import android.net.Uri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,13 +32,13 @@ fun ImageThumbnail(
     onRemove: () -> Unit,
 ) {
     Box(
-        modifier = modifier
-            .size(84.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .clickable { onClick() }
+        modifier = modifier.size(84.dp)
     ) {
         AsyncImage(
-            modifier = Modifier.matchParentSize(),
+            modifier = Modifier
+                .matchParentSize()
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { onClick() },
             model = imageUri,
             placeholder = painterResource(R.drawable.ic_launcher_foreground),
             contentDescription = stringResource(R.string.attached_image_label),
@@ -51,24 +48,18 @@ fun ImageThumbnail(
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(4.dp) // Padding from the edge of the thumbnail
+                .padding(4.dp)
+                .size(20.dp)
+                .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                .clickable { onRemove() },
+            contentAlignment = Alignment.Center
         ) {
-            IconButton(
-                modifier = Modifier
-                    .size(24.dp) // Large enough to be visible, small enough for a thumbnail
-                    .background(
-                        color = Color.Black.copy(alpha = 0.6f),
-                        shape = CircleShape // Circular background for the "X"
-                    ),
-                onClick = onRemove,
-            ) {
-                Icon(
-                    modifier = Modifier.size(16.dp), // Icon scaled to fit inside the 24dp button
-                    imageVector = Icons.Default.Close,
-                    contentDescription = stringResource(R.string.remove_image_label),
-                    tint = Color.White,
-                )
-            }
+            Icon(
+                modifier = Modifier.size(12.dp),
+                imageVector = Icons.Default.Close,
+                contentDescription = stringResource(R.string.remove_image_label),
+                tint = Color.White,
+            )
         }
     }
 }

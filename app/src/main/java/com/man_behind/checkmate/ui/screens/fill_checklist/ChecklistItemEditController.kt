@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 class ChecklistItemEditController(
     private val itemId: Long,
@@ -36,7 +37,7 @@ class ChecklistItemEditController(
     private fun setupDebounce() {
         scope.launch {
             actionFlow
-                .debounce(700)
+                .debounce(700.milliseconds)
                 .distinctUntilChanged()
                 .collectLatest { new ->
                     if (new != lastSavedAction) {
@@ -47,7 +48,7 @@ class ChecklistItemEditController(
 
         scope.launch {
             commentFlow
-                .debounce(700)
+                .debounce(700.milliseconds)
                 .distinctUntilChanged()
                 .collectLatest { new ->
                     if (new != lastSavedComment) {
@@ -83,7 +84,7 @@ class ChecklistItemEditController(
         }
     }
 
-    fun onImagesRemoved(itemImageId: Long) {
+    fun onImageRemoved(itemImageId: Long) {
         scope.launch {
             repository.removeImage(itemId, itemImageId)
         }

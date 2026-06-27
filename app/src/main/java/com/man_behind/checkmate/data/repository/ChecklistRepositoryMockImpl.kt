@@ -35,5 +35,9 @@ class ChecklistRepositoryMockImpl : ChecklistRepository {
     override suspend fun removeImage(itemId: Long, itemImageId: Long) {}
 
     override suspend fun renameChecklist(checklistId: Long, newName: String) {}
-    override suspend fun deleteChecklist(id: Long) {}
+    override suspend fun getChecklistImageUris(checklistIds: List<Long>): List<Uri> {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun deleteChecklists(ids: List<Long>) {}
 }

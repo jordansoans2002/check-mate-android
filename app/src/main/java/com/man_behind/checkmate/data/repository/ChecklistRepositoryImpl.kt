@@ -1,6 +1,7 @@
 package com.man_behind.checkmate.data.repository
 
 import android.net.Uri
+import androidx.core.net.toUri
 import com.man_behind.checkmate.data.local.db.DatabaseService
 import com.man_behind.checkmate.data.local.db.entity.ChecklistItemImageEntity
 import com.man_behind.checkmate.data.mapper.toModel
@@ -82,7 +83,11 @@ class ChecklistRepositoryImpl @Inject constructor(
         // No-op for UI testing
     }
 
-    override suspend fun deleteChecklist(id: Long) {
-        // No-op for UI testing
+    override suspend fun getChecklistImageUris(checklistIds: List<Long>): List<Uri> =
+        databaseService.checklistDao().getChecklistImages(checklistIds)
+            .map { it.toUri() }
+
+    override suspend fun deleteChecklists(ids: List<Long>) {
+        databaseService.checklistDao().deleteChecklists(ids)
     }
 }

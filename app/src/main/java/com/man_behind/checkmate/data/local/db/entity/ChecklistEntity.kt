@@ -2,6 +2,7 @@ package com.man_behind.checkmate.data.local.db.entity
 
 import androidx.room3.Entity
 import androidx.room3.ForeignKey
+import androidx.room3.Index
 import androidx.room3.PrimaryKey
 import java.time.LocalDateTime
 
@@ -20,6 +21,10 @@ import java.time.LocalDateTime
             childColumns = ["questionSetId"],
             onDelete = ForeignKey.SET_NULL
         )
+    ],
+    indices = [
+        Index("lastModifiedSectionId"),
+        Index("questionSetId")
     ]
 )
 data class ChecklistEntity(

@@ -152,9 +152,9 @@ interface ChecklistDao {
 
     @Query("""
         DELETE FROM checklist_item_images
-        WHERE id = :itemImageId
+        WHERE id IN (:itemImageIds)
     """)
-    suspend fun deleteImages(itemImageId: Long)
+    suspend fun deleteImages(itemImageIds: List<Long>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertImages(images: List<ChecklistItemImageEntity>)
@@ -259,8 +259,23 @@ interface ChecklistDao {
         itemImageId: Long,
         timestamp: LocalDateTime = LocalDateTime.now()
     ) {
-        deleteImages(itemImageId)
+        deleteImages(listOf(itemImageId))
         updateChecklistMetadata(itemId, timestamp)
         updateSectionMetadata(itemId)
     }
+
+    @Query("""
+        SELECT uri FROM checklist_item_images
+        JOIN checklist_items ON checklist_items.id = checklist_item_images.itemId
+        JOIN checklist_sections ON checklist_sections.id = checklist_items.sectionId
+        JOIN checklists ON checklists.id = checklist_sections.checklistId
+        WHERE checklists.id IN (:checklistIds)
+    """)
+    suspend fun getChecklistImages(checklistIds: List<Long>): List<String>
+
+    @Query("""
+        DELETE FROM checklists
+        WHERE id IN (:checklistIds)
+    """)
+    suspend fun deleteChecklists(checklistIds: List<Long>)
 }

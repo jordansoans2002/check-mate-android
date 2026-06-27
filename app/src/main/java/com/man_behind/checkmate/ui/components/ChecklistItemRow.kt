@@ -1,7 +1,6 @@
 package com.man_behind.checkmate.ui.components
 
 import android.net.Uri
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,7 +25,6 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CardElevation
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -39,7 +37,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
@@ -58,7 +55,9 @@ fun ChecklistItemRow(
     item: ChecklistItem,
     controller: ChecklistItemEditController,
     onGuidelineClick: (String) -> Unit,
+    onImageClick: (List<Uri>, Int) -> Unit,
     onAddImageClick: () -> Unit,
+    onRemoveImageClick: (Long, Uri) -> Unit,
 ) {
     val action by controller.action.collectAsState()
     val comment by controller.comment.collectAsState()
@@ -72,8 +71,8 @@ fun ChecklistItemRow(
         onActionChanged = controller::onActionChanged,
         comment = comment,
         onCommentChanged = controller::onCommentChanged,
-        onImageSelected = { /* Open image viewer if needed */ },
-        onImageRemoved = controller::onImagesRemoved,
+        onImageClick = onImageClick,
+        onImageRemoved = onRemoveImageClick,
         onAddImageClick = onAddImageClick,
         flush = controller::flush
     )
@@ -89,8 +88,8 @@ fun ChecklistItemRowContent(
     onActionChanged: (String) -> Unit,
     comment: String,
     onCommentChanged: (String) -> Unit,
-    onImageSelected: (Uri) -> Unit,
-    onImageRemoved: (Long) -> Unit,
+    onImageClick: (List<Uri>, Int) -> Unit,
+    onImageRemoved: (Long, Uri) -> Unit,
     onAddImageClick: () -> Unit,
     flush: () -> Unit,
 ) {
@@ -218,8 +217,8 @@ fun ChecklistItemRowContent(
                     items(items = item.images, key = { it.id }) { image ->
                         ImageThumbnail(
                             imageUri = image.uri,
-                            onClick = { onImageSelected(image.uri) },
-                            onRemove = { onImageRemoved(image.id) }
+                            onClick = { onImageClick(item.images.map { it.uri }, item.images.indexOf(image)) },
+                            onRemove = { onImageRemoved(image.id, image.uri) }
                         )
                     }
                 }
@@ -267,8 +266,8 @@ fun ChecklistItemRowPreview() {
         onActionChanged = {  },
         comment = "",
         onCommentChanged = {  },
-        onImageSelected = {  },
-        onImageRemoved = {  },
+        onImageClick = { _, _ -> },
+        onImageRemoved = { _, _ -> },
         onAddImageClick = {  },
     ) { }
 }

@@ -6,16 +6,13 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -59,6 +57,7 @@ import com.man_behind.checkmate.ui.components.ChecklistItemRow
 import com.man_behind.checkmate.ui.components.GuidelineBottomSheet
 import com.man_behind.checkmate.ui.components.GuidelineTooltip
 import com.man_behind.checkmate.ui.components.ImageSourcePicker
+import com.man_behind.checkmate.ui.components.ImageViewerDialog
 import java.time.LocalDateTime
 
 @Composable
@@ -72,6 +71,7 @@ fun FillChecklistScreen(
     var activeSectionId by rememberSaveable { mutableStateOf<Long?>(null) }
     var showGuidelineTooltip by remember { mutableStateOf<String?>(null) }
     var showGuidelineBottomSheet by remember { mutableStateOf<String?>(null) }
+    var showImageViewer by remember { mutableStateOf<Pair<List<Uri>, Int>?>(null) }
     var showImageSourcePicker by remember { mutableStateOf(false) }
     var currentItemForImages by remember { mutableStateOf<ChecklistItem?>(null) }
     var capturedImageUri by remember { mutableStateOf<Uri?>(null) }
@@ -89,7 +89,7 @@ fun FillChecklistScreen(
                 }
             }
             currentItemForImages?.let { item ->
-                viewModel.getController(item).onImagesAdded(uris)
+                viewModel.onGalleryImagesAdded(uris, item)
             }
         }
     }
@@ -100,7 +100,7 @@ fun FillChecklistScreen(
         if (success) {
             capturedImageUri?.let { uri ->
                 currentItemForImages?.let { item ->
-                    viewModel.getController(item).onImagesAdded(listOf(uri))
+                    viewModel.onCameraImageCaptured(uri, item)
                 }
             }
         }
@@ -138,9 +138,15 @@ fun FillChecklistScreen(
 //                    showGuidelineBottomSheet = text
 //                }
             },
+            onImageClick = { uris, index ->
+                showImageViewer = uris to index
+            },
             onAddImageClick = { item ->
                 currentItemForImages = item
                 showImageSourcePicker = true
+            },
+            onRemoveImageClick = { item, imageId, uri ->
+                viewModel.onImageRemoved(item ,imageId, uri)
             }
         )
     }
@@ -158,6 +164,15 @@ fun FillChecklistScreen(
             onDismiss = { showGuidelineTooltip = null }
         )
     }
+
+    showImageViewer?.let { (uris, startIndex) ->
+        ImageViewerDialog(
+            uris = uris,
+            startIndex = startIndex,
+            onDismiss = { showImageViewer = null }
+        )
+    }
+
 
     if (showImageSourcePicker) {
         ImageSourcePicker(
@@ -185,15 +200,30 @@ fun FillChecklistContent(
     onSectionChange: (Int) -> Unit,
     getController: (ChecklistItem) -> ChecklistItemEditController,
     onGuidelineClick: (String) -> Unit,
-    onAddImageClick: (ChecklistItem) -> Unit
+    onImageClick: (List<Uri>, Int) -> Unit,
+    onAddImageClick: (ChecklistItem) -> Unit,
+    onRemoveImageClick: (ChecklistItem, Long, Uri) -> Unit,
 ) {
     val currentSection = checklist.sections[activeSectionIndex]
 
     var totalItems = 0
-    var itemsChecked = 0
-    for (section in checklist.sections) {
+    var totalItemsChecked = 0
+    var sectionItemsChecked = 0
+    checklist.sections.forEachIndexed { index, section ->
         totalItems += section.items.size
-        itemsChecked += section.itemsChecked
+        for (item in section.items) {
+            if (
+                item.selectedOptionId != null ||
+                item.comment.isNotBlank() ||
+                item.actionTaken.isNotBlank() ||
+                item.images.isNotEmpty()
+            ) {
+                totalItemsChecked++
+
+                if (index == activeSectionIndex)
+                    sectionItemsChecked++
+            }
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -235,8 +265,12 @@ fun FillChecklistContent(
             ) {
                 Text(
                     modifier = Modifier.fillMaxWidth(),
-                    text = checklist.sections[activeSectionIndex].name,
-                    style = MaterialTheme.typography.titleLarge,
+                    text = stringResource(
+                        R.string.progress,
+                        activeSectionIndex+1,
+                        checklist.sections.size
+                    ),
+                    style = MaterialTheme.typography.labelMedium,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -244,12 +278,8 @@ fun FillChecklistContent(
 
                 Text(
                     modifier = Modifier.fillMaxWidth(),
-                    text = stringResource(
-                        R.string.progress,
-                        currentSection.itemsChecked,
-                        currentSection.items.size
-                    ),
-                    style = MaterialTheme.typography.labelMedium,
+                    text = checklist.sections[activeSectionIndex].name,
+                    style = MaterialTheme.typography.titleLarge,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -281,23 +311,12 @@ fun FillChecklistContent(
                 }
             }
         }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(6.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(currentSection.itemsChecked.toFloat() / currentSection.items.size)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
-            )
-        }
+        ChecklistProgressBar(sectionItemsChecked, currentSection.items.size)
 
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(
                 items = currentSection.items,
@@ -307,23 +326,50 @@ fun FillChecklistContent(
                     item = item,
                     controller = getController(item),
                     onGuidelineClick = onGuidelineClick,
-                    onAddImageClick = { onAddImageClick(item) }
+                    onImageClick = onImageClick,
+                    onAddImageClick = { onAddImageClick(item) },
+                    onRemoveImageClick = { imageId, uri -> onRemoveImageClick(item, imageId, uri) }
                 )
             }
         }
 
-        Box(
+
+        Column (
             modifier = Modifier
                 .fillMaxWidth()
-                .height(12.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(itemsChecked.toFloat() / totalItems)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+            Text(
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+                text = checklist.name
             )
+
+            ChecklistProgressBar(totalItemsChecked, totalItems)
         }
+    }
+}
+
+@Composable
+fun ChecklistProgressBar(completed: Int, total: Int) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+        LinearProgressIndicator(
+            modifier = Modifier.matchParentSize(),
+            progress = { completed.toFloat() / total },
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+        )
+        Text(
+            modifier = Modifier.align(Alignment.Center),
+            text = stringResource(
+                R.string.progress,
+                completed,
+                total,
+            ),
+            style = MaterialTheme.typography.labelSmall,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -409,7 +455,9 @@ fun FillChecklistContentPreview() {
         activeSectionIndex = 1,
         onSectionChange = { },
         onGuidelineClick = {  },
+        onImageClick = { _, _ -> },
         onAddImageClick = { },
+        onRemoveImageClick = { _, _, _ -> },
         getController = { item ->
             controllers.getOrPut(item.id) {
                 ChecklistItemEditController(

@@ -39,6 +39,8 @@ interface ChecklistRepository {
         checklistId: Long,
         newName: String
     )
-    suspend fun deleteChecklist(id: Long)
+
+    suspend fun getChecklistImageUris(checklistIds: List<Long>): List<Uri>
+    suspend fun deleteChecklists(ids: List<Long>)
 
 }

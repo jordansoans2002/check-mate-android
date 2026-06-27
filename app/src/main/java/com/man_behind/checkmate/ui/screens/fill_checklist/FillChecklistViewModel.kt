@@ -1,5 +1,6 @@
 package com.man_behind.checkmate.ui.screens.fill_checklist
 
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -42,6 +44,41 @@ class FillChecklistViewModel @Inject constructor(
                 scope = viewModelScope
             )
         }
+    }
+
+    fun onCameraImageCaptured(tempUri: Uri, item: ChecklistItem) {
+        // if saving to app storage + gallery
+        viewModelScope.launch {
+            mediaManager.saveToGallery(tempUri)
+            val appUri = mediaManager.saveToAppStorage(tempUri, checklistId)
+            appUri?.let { getController(item).onImagesAdded(listOf(it)) }
+            mediaManager.deleteTempFile(tempUri)
+        }
+
+        // saving to gallery
+//        viewModelScope.launch {
+//            val galleryUri = mediaManager.saveToGallery(tempUri)
+//            galleryUri?.let { getController(item).onImagesAdded(listOf(it)) }
+//            mediaManager.deleteTempFile(tempUri)
+//        }
+    }
+
+    fun onGalleryImagesAdded(uris: List<Uri>, item: ChecklistItem) {
+
+        // If storing to app storage
+        viewModelScope.launch {
+            val appUris = mediaManager.saveMultipleToAppStorage(uris, checklistId)
+            getController(item).onImagesAdded(appUris)
+        }
+
+        // Already in gallery — just store the URIs as-is
+//        getController(item).onImagesAdded(uris)
+    }
+
+    fun onImageRemoved(item: ChecklistItem, itemImageId: Long, uri: Uri) {
+        // deletes images only if they are in app storage
+        mediaManager.deleteFromAppStorage(uri)
+        getController(item).onImageRemoved(itemImageId)
     }
 
     fun flushAll() {

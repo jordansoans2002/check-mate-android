@@ -63,6 +63,8 @@ dependencies {
     implementation(libs.androidx.compose.foundation.layout)
     debugImplementation(libs.androidx.compose.ui.tooling)
     implementation(libs.coil.compose)
+    implementation(libs.zoomable.image.coil)
+
 
     // DI (Hilt)
     implementation(libs.hilt.android)
