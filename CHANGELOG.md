@@ -13,9 +13,6 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Added
 - Section and question number at the start of each question
 
-### Changed
-- Updated questionnaire csv, so that the blank lines and paragraphs are preserved in the guidelines
-
 ### Known issues
 - When adding image if camera option is clicked app crashes. Bug could not be replicated
 
