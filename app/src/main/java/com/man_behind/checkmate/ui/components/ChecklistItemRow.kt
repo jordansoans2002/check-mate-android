@@ -52,6 +52,7 @@ import com.man_behind.checkmate.ui.screens.fill_checklist.ChecklistItemEditContr
 @Composable
 fun ChecklistItemRow(
     modifier: Modifier = Modifier,
+    sectionPosition: Int,
     item: ChecklistItem,
     controller: ChecklistItemEditController,
     onGuidelineClick: (String) -> Unit,
@@ -64,6 +65,7 @@ fun ChecklistItemRow(
 
     ChecklistItemRowContent(
         modifier = modifier,
+        sectionPosition = sectionPosition,
         item = item,
         onGuidelineClick = onGuidelineClick,
         onOptionSelected = controller::onOptionSelected,
@@ -81,6 +83,7 @@ fun ChecklistItemRow(
 @Composable
 fun ChecklistItemRowContent(
     modifier: Modifier,
+    sectionPosition: Int,
     item: ChecklistItem,
     onGuidelineClick: (String) -> Unit,
     onOptionSelected: (Long?) -> Unit,
@@ -94,6 +97,7 @@ fun ChecklistItemRowContent(
     flush: () -> Unit,
 ) {
     val annotatedText = buildAnnotatedString {
+        append("${sectionPosition + 1}.${item.position + 1}. ")
         append(item.question)
 
         if (item.fromDocumentation || item.onInspection) {
@@ -259,6 +263,7 @@ fun ChecklistItemRowPreview() {
     )
     ChecklistItemRowContent(
         modifier = Modifier.padding(),
+        sectionPosition = 1,
         item = item,
         onGuidelineClick =  {  },
         onOptionSelected = {  },
@@ -269,5 +274,6 @@ fun ChecklistItemRowPreview() {
         onImageClick = { _, _ -> },
         onImageRemoved = { _, _ -> },
         onAddImageClick = {  },
-    ) { }
+        { },
+    )
 }

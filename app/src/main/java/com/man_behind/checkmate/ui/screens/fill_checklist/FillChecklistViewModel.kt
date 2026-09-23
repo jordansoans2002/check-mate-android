@@ -10,6 +10,7 @@ import com.man_behind.checkmate.data.repository.ChecklistRepository
 import com.man_behind.checkmate.ui.navigation.FillChecklist
 import com.man_behind.checkmate.utils.MediaManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +29,8 @@ class FillChecklistViewModel @Inject constructor(
     private val checklistId = route.checklistId
     private val _state = MutableStateFlow(FillChecklistUiState())
     val state: StateFlow<FillChecklistUiState> = _state.asStateFlow()
+
+    val snackbar = MutableSharedFlow<String>()
 
     val checklist = checklistRepository.getChecklistById(checklistId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)

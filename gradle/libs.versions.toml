@@ -1,24 +1,24 @@
 [versions]
-agp = "9.2.1"
+agp = "9.3.2"
 coilCompose = "2.7.0"
-kotlin = "2.4.0"
-ksp = "2.3.3"
+kotlin = "2.4.20"
+ksp = "2.3.11"
 
 # Coroutines
 coroutines = "1.11.0"
 
 # DI (Hilt)
-hilt = "2.59.2" # updgrade only with AGP
-hiltNavigation = "1.3.0"
+hilt = "2.60.1" # updgrade only with AGP
+hiltNavigation = "1.4.0"
 
 # Data & Persistence
 room = "3.0.0-alpha06"
 
 # UI & Navigation
-navigation = "2.10.0-alpha05"
+navigation = "2.10.1"
 activityCompose = "1.13.0"
 lifecycle = "2.11.0"
-composeBom = "2026.06.00"
+composeBom = "2026.09.00"
 composeIcons = "1.7.8"
 coreKtx = "1.19.0"
 
@@ -26,7 +26,7 @@ coreKtx = "1.19.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
 espressoCore = "3.7.0"
-foundationLayout = "1.11.3"
+foundationLayout = "1.12.1"
 documentfile = "1.1.0"
 zoomableImageCoil = "0.19.0"
 

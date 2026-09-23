@@ -19,14 +19,20 @@ class MediaManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
 
-    fun getTempCameraUri(): Uri {
-        val directory = File(context.externalCacheDir, "images").apply { mkdirs() }
-        val file = File.createTempFile("captured_image_", ".jpg", directory)
-        return FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            file
-        )
+    fun getTempCameraUri(): Uri? {
+        return try {
+            val cacheDirectory = context.externalCacheDir ?: context.cacheDir
+            val directory = File(cacheDirectory, "images").apply { mkdirs() }
+            val file = File.createTempFile("captured_image_", ".jpg", directory)
+            return FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+        } catch (e: Exception) {
+            Log.e("MediaManager", "Failed to create temp file: $e")
+            null
+        }
     }
 
     fun deleteTempFile(uri: Uri) {

@@ -1,5 +1,7 @@
 package com.man_behind.checkmate.ui.screens.fill_checklist
 
+import android.annotation.SuppressLint
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
@@ -26,6 +28,8 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -57,12 +61,14 @@ import com.man_behind.checkmate.data.model.ChecklistItem
 import com.man_behind.checkmate.data.model.ChecklistItemOption
 import com.man_behind.checkmate.data.model.ChecklistSection
 import com.man_behind.checkmate.data.repository.ChecklistRepositoryMockImpl
+import com.man_behind.checkmate.ui.components.AppSnackbarHost
 import com.man_behind.checkmate.ui.components.ChecklistItemRow
 import com.man_behind.checkmate.ui.components.GuidelineBottomSheet
 import com.man_behind.checkmate.ui.components.GuidelineTooltip
 import com.man_behind.checkmate.ui.components.ImageSourcePicker
 import com.man_behind.checkmate.ui.components.ImageViewerDialog
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 
 @Composable
@@ -72,6 +78,7 @@ fun FillChecklistScreen(
     val context = LocalContext.current
     val checklist by viewModel.checklist.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
 
     var activeSectionId by rememberSaveable { mutableStateOf<Long?>(null) }
     var restoredPosition by rememberSaveable { mutableStateOf(false) }
@@ -82,6 +89,7 @@ fun FillChecklistScreen(
     var showImageSourcePicker by remember { mutableStateOf(false) }
     var currentItemForImages by remember { mutableStateOf<ChecklistItem?>(null) }
     var capturedImageUri by remember { mutableStateOf<Uri?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
@@ -134,6 +142,12 @@ fun FillChecklistScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.snackbar.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
     checklist?.let { checklist ->
         val activeSectionIndex = checklist.sections
             .indexOfFirst { it.id == activeSectionId }
@@ -159,6 +173,7 @@ fun FillChecklistScreen(
             checklist = checklist,
             activeSectionIndex = activeSectionIndex,
             listState = listState,
+            snackbarHostState = snackbarHostState,
             onSectionChange = { activeSectionId = checklist.sections[activeSectionIndex + it].id },
             getController = { viewModel.getController(it) },
             onGuidelineClick = { text ->
@@ -188,7 +203,7 @@ fun FillChecklistScreen(
             onDismiss = { showGuidelineBottomSheet = null }
         )
     }
-    // TODO anchor to icon
+
     showGuidelineTooltip?.let { guideline ->
         GuidelineTooltip(
             text = guideline,
@@ -217,18 +232,34 @@ fun FillChecklistScreen(
             onCameraClick = {
                 showImageSourcePicker = false
                 val uri = viewModel.mediaManager.getTempCameraUri()
-                capturedImageUri = uri
-                cameraLauncher.launch(uri)
+                if (uri != null) {
+                    try {
+                        capturedImageUri = uri
+                        cameraLauncher.launch(uri)
+                    } catch (e: ActivityNotFoundException) {
+                        Log.e("FillChecklistScreen", "Camera app not found: $e")
+                        scope.launch {
+                            viewModel.snackbar.emit("Camera app not accessible. Please add image from gallery")
+                        }
+                    }
+                } else {
+                    Log.e("FillChecklistScreen", "Failed to create temp camera URI")
+                    scope.launch {
+                        viewModel.snackbar.emit("Camera app not accessible. Please add image from gallery")
+                    }
+                }
             }
         )
     }
 }
 
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun FillChecklistContent(
     checklist: Checklist,
     activeSectionIndex: Int,
     listState: LazyListState = rememberLazyListState(),
+    snackbarHostState: SnackbarHostState,
     onSectionChange: (Int) -> Unit,
     getController: (ChecklistItem) -> ChecklistItemEditController,
     onGuidelineClick: (String) -> Unit,
@@ -258,126 +289,137 @@ fun FillChecklistContent(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TextButton (
-                modifier = Modifier.width(84.dp),
-                enabled = activeSectionIndex > 0,
-                onClick = { onSectionChange(-1) },
-                shape = RoundedCornerShape(8.dp)
+    Scaffold(
+        snackbarHost = { AppSnackbarHost(hostState = snackbarHostState) }
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                TextButton(
+                    modifier = Modifier.width(84.dp),
+                    enabled = activeSectionIndex > 0,
+                    onClick = { onSectionChange(-1) },
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        if (activeSectionIndex > 0) {
+                            Icon(
+                                imageVector = Icons.Default.ChevronLeft,
+                                contentDescription = stringResource(R.string.previous_section),
+                            )
+                            Text(
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                text = checklist.sections[activeSectionIndex - 1].name
+                            )
+                        }
+                    }
+                }
+
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ){
-                    if (activeSectionIndex > 0) {
-                        Icon(
-                            imageVector = Icons.Default.ChevronLeft,
-                            contentDescription = stringResource(R.string.previous_section),
-                        )
-                        Text(
-                            style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            text = checklist.sections[activeSectionIndex - 1].name
-                        )
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .weight(1f),
+                ) {
+                    Text(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = stringResource(
+                            R.string.progress,
+                            activeSectionIndex + 1,
+                            checklist.sections.size
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Text(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = checklist.sections[activeSectionIndex].name,
+                        style = MaterialTheme.typography.titleLarge,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                TextButton(
+                    modifier = Modifier.width(96.dp),
+                    enabled = activeSectionIndex < checklist.sections.size - 1,
+                    onClick = { onSectionChange(1) },
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    if (activeSectionIndex < checklist.sections.size - 1) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = stringResource(R.string.next_section),
+                            )
+                            Text(
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                text = checklist.sections[activeSectionIndex + 1].name
+                            )
+                        }
                     }
                 }
             }
+            ChecklistProgressBar(sectionItemsChecked, currentSection.items.size)
+
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                state = listState,
+            ) {
+                items(
+                    items = currentSection.items,
+                    key = { it.id }
+                ) { item ->
+                    ChecklistItemRow(
+                        sectionPosition = currentSection.position,
+                        item = item,
+                        controller = getController(item),
+                        onGuidelineClick = onGuidelineClick,
+                        onImageClick = onImageClick,
+                        onAddImageClick = { onAddImageClick(item) },
+                        onRemoveImageClick = { imageId, uri ->
+                            onRemoveImageClick(
+                                item,
+                                imageId,
+                                uri
+                            )
+                        }
+                    )
+                }
+            }
+
 
             Column(
                 modifier = Modifier
-                    .padding(horizontal = 8.dp)
-                    .weight(1f),
+                    .fillMaxWidth()
             ) {
                 Text(
                     modifier = Modifier.fillMaxWidth(),
-                    text = stringResource(
-                        R.string.progress,
-                        activeSectionIndex+1,
-                        checklist.sections.size
-                    ),
-                    style = MaterialTheme.typography.labelMedium,
                     textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    text = checklist.name
                 )
 
-                Text(
-                    modifier = Modifier.fillMaxWidth(),
-                    text = checklist.sections[activeSectionIndex].name,
-                    style = MaterialTheme.typography.titleLarge,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                ChecklistProgressBar(totalItemsChecked, totalItems)
             }
-
-            TextButton (
-                modifier = Modifier.width(96.dp),
-                enabled = activeSectionIndex < checklist.sections.size - 1,
-                onClick = { onSectionChange(1) },
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                if (activeSectionIndex < checklist.sections.size -1) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ChevronRight,
-                            contentDescription = stringResource(R.string.next_section),
-                        )
-                        Text(
-                            style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            text = checklist.sections[activeSectionIndex + 1].name
-                        )
-                    }
-                }
-            }
-        }
-        ChecklistProgressBar(sectionItemsChecked, currentSection.items.size)
-
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            state = listState,
-        ) {
-            items(
-                items = currentSection.items,
-                key = { it.id }
-            ) { item ->
-                ChecklistItemRow(
-                    item = item,
-                    controller = getController(item),
-                    onGuidelineClick = onGuidelineClick,
-                    onImageClick = onImageClick,
-                    onAddImageClick = { onAddImageClick(item) },
-                    onRemoveImageClick = { imageId, uri -> onRemoveImageClick(item, imageId, uri) }
-                )
-            }
-        }
-
-
-        Column (
-            modifier = Modifier
-                .fillMaxWidth()
-        ) {
-            Text(
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center,
-                text = checklist.name
-            )
-
-            ChecklistProgressBar(totalItemsChecked, totalItems)
         }
     }
 }
@@ -485,6 +527,7 @@ fun FillChecklistContentPreview() {
             lastModifiedSectionId = null,
             lastModifiedOn = null
         ),
+        snackbarHostState = remember { SnackbarHostState() },
         activeSectionIndex = 1,
         onSectionChange = { },
         onGuidelineClick = {  },
