@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+## [Unreleased]
+### Fixed
+
+### Added
+- Application logo
+- Navigate between sections
+
+### Known issues
+
+---
 [0.1.1] - 2026-09-23
 ### Fixed
 - Bottom sheet is scrollable, if content extends outside the screen
@@ -17,7 +27,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - When adding image if camera option is clicked app crashes. Bug could not be replicated
 
 ---
-## [0.1.0] — 2026
+## [0.1.0] — 2026-06-27
 ### Added
 - Loads questionnaire from .csv file in assets
 - Create multiple checklists and select the questionnaire to be used

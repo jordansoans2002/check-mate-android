@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,6 +68,7 @@ import com.man_behind.checkmate.ui.components.GuidelineBottomSheet
 import com.man_behind.checkmate.ui.components.GuidelineTooltip
 import com.man_behind.checkmate.ui.components.ImageSourcePicker
 import com.man_behind.checkmate.ui.components.ImageViewerDialog
+import com.man_behind.checkmate.ui.components.SectionListBottomSheet
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
@@ -83,6 +85,7 @@ fun FillChecklistScreen(
     var activeSectionId by rememberSaveable { mutableStateOf<Long?>(null) }
     var restoredPosition by rememberSaveable { mutableStateOf(false) }
 
+    var showSectionListBottomSheet by remember { mutableStateOf(false) }
     var showGuidelineTooltip by remember { mutableStateOf<String?>(null) }
     var showGuidelineBottomSheet by remember { mutableStateOf<String?>(null) }
     var showImageViewer by remember { mutableStateOf<Pair<List<Uri>, Int>?>(null) }
@@ -169,11 +172,24 @@ fun FillChecklistScreen(
             }
         }
 
+        if (showSectionListBottomSheet) {
+            SectionListBottomSheet(
+                currentSectionIndex = activeSectionIndex,
+                sectionList = checklist.sections.map { it.name },
+                onClick = {
+                    activeSectionId = checklist.sections[it].id
+                    showSectionListBottomSheet = false
+                },
+                onDismiss = { showSectionListBottomSheet = false }
+            )
+        }
+
         FillChecklistContent(
             checklist = checklist,
             activeSectionIndex = activeSectionIndex,
             listState = listState,
             snackbarHostState = snackbarHostState,
+            onSectionClick = { showSectionListBottomSheet = true },
             onSectionChange = { activeSectionId = checklist.sections[activeSectionIndex + it].id },
             getController = { viewModel.getController(it) },
             onGuidelineClick = { text ->
@@ -260,6 +276,7 @@ fun FillChecklistContent(
     activeSectionIndex: Int,
     listState: LazyListState = rememberLazyListState(),
     snackbarHostState: SnackbarHostState,
+    onSectionClick: () -> Unit,
     onSectionChange: (Int) -> Unit,
     getController: (ChecklistItem) -> ChecklistItemEditController,
     onGuidelineClick: (String) -> Unit,
@@ -326,6 +343,7 @@ fun FillChecklistContent(
 
                 Column(
                     modifier = Modifier
+                        .clickable { onSectionClick() }
                         .padding(horizontal = 8.dp)
                         .weight(1f),
                 ) {
@@ -528,6 +546,7 @@ fun FillChecklistContentPreview() {
             lastModifiedOn = null
         ),
         snackbarHostState = remember { SnackbarHostState() },
+        onSectionClick = { },
         activeSectionIndex = 1,
         onSectionChange = { },
         onGuidelineClick = {  },

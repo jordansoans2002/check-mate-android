@@ -16,6 +16,7 @@
     <string name="add_image_label">Add Images</string>
     <string name="attached_image_label">Attached Image</string>
     <string name="remove_image_label">Remove Image</string>
+    <string name="sections_label">Sections</string>
     <string name="guidelines_label">Guidelines</string>
     <string name="progress">%1$d / %2$d</string>
     <string name="previous_section">Previous Section</string>

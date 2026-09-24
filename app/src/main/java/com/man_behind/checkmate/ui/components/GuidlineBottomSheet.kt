@@ -29,7 +29,6 @@ fun GuidelineBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
             Text(
@@ -38,11 +37,17 @@ fun GuidelineBottomSheet(
             )
             Spacer(modifier = Modifier.height(12.dp))
 
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Spacer(modifier = Modifier.height(24.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+            }
         }
     }
 }
