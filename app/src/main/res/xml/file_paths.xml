@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <external-cache-path name="check_mate_images" path="Images/" />
+    <cache-path
+        name="internal_images"
+        path="images/" />
 </paths>

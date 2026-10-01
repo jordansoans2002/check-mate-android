@@ -5,14 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
-## [Unreleased]
+## [1.0.1] - 2026-10-02
 ### Fixed
+- Handle camera crash and show error message. Error may be due to phone configuration
+- Extra spacing at the top of select checklists app bar 
+
+### Added
+- Color bar for each question according to the option selected
+
+---
+## [1.0.0] - 2026-09-24
+### Fixed
+- Section numbers and question numbers are fetched from questionnaire not from position
 
 ### Added
 - Application logo
 - Navigate between sections
 
 ### Known issues
+- When adding image if camera option is selected app crashes. Bug could not be replicated
 
 ---
 [0.1.1] - 2026-09-23
@@ -24,7 +35,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - Section and question number at the start of each question
 
 ### Known issues
-- When adding image if camera option is clicked app crashes. Bug could not be replicated
+- When adding image if camera option is selected app crashes. Bug could not be replicated
 
 ---
 ## [0.1.0] — 2026-06-27

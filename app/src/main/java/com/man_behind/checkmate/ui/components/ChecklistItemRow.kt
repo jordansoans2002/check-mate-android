@@ -3,7 +3,6 @@ package com.man_behind.checkmate.ui.components
 import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
@@ -36,7 +35,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
@@ -48,6 +51,7 @@ import com.man_behind.checkmate.R
 import com.man_behind.checkmate.data.model.ChecklistItem
 import com.man_behind.checkmate.data.model.ChecklistItemOption
 import com.man_behind.checkmate.ui.screens.fill_checklist.ChecklistItemEditController
+import com.man_behind.checkmate.ui.theme.CheckMateTheme
 
 @Composable
 fun ChecklistItemRow(
@@ -97,9 +101,7 @@ fun ChecklistItemRowContent(
     flush: () -> Unit,
 ) {
     val annotatedText = buildAnnotatedString {
-        append("${sectionPosition + 1}.${item.position + 1}. ")
-        append(item.question)
-
+        append(stringResource(R.string.question_number_question, item.questionNumber, item.question))
         if (item.fromDocumentation || item.onInspection) {
             append(" (")
             if (item.fromDocumentation) append("M")
@@ -137,14 +139,43 @@ fun ChecklistItemRowContent(
     } else
         mapOf()
 
+    val isAnswered = item.selectedOptionId != null ||
+            item.comment.isNotBlank() ||
+            item.actionTaken.isNotBlank() ||
+            item.images.isNotEmpty()
+    val selectedOption = item.options.find { item.selectedOptionId == it.id }?.text
+    val selectedColor = when {
+        !isAnswered -> Color.Black
+        selectedOption.isNullOrBlank() -> Color.Transparent
+        selectedOption.contains("yes", ignoreCase = true) -> Color(red = 0.0824f, green = 0.5020f, blue = 0.2392f)  // green
+        selectedOption.contains("no", ignoreCase = true) -> Color(red = 0.8000f, green = 0.1020f, blue = 0.1020f)  // red
+        selectedOption.contains("n/a", ignoreCase = true) -> Color(red = 0.1020f, green = 0.3961f, blue = 0.8000f)  // blue
+        selectedOption.contains("n/v", ignoreCase = true) -> Color(red = 0.8000f, green = 0.5490f, blue = 0.1020f)  // yellow
+        else -> Color.Transparent
+    }
+
     Card(
-        modifier = modifier,
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        )
+        ),
     ) {
-        Column(Modifier.padding(horizontal = 8.dp, vertical = 12.dp)) {
+
+        Column(
+            modifier = Modifier
+                .drawBehind {
+                    drawRect(
+                        color = selectedColor,
+                        topLeft = Offset.Zero,
+                        size = Size(
+                            width = 8.dp.toPx(),
+                            height = size.height
+                        )
+                    )
+                }
+                .padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 8.dp)
+        ) {
+
             Text(
                 text = annotatedText,
                 inlineContent = inlineContent,
@@ -171,7 +202,7 @@ fun ChecklistItemRowContent(
                     )
                 }
 
-                Box(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.weight(1f))
 
                 FilterChip(
                     selected = item.selectedOptionId == null,
@@ -193,7 +224,7 @@ fun ChecklistItemRowContent(
                     .onFocusChanged { if (!it.isFocused) flush() },
                 value = comment,
                 onValueChange = onCommentChanged,
-                label = { Text("Comment") },
+                label = { Text(stringResource(R.string.comment)) },
                 singleLine = false,
                 minLines = 1,
                 maxLines = 5,
@@ -206,7 +237,7 @@ fun ChecklistItemRowContent(
                     .onFocusChanged { if (!it.isFocused) flush() },
                 value = action,
                 onValueChange = onActionChanged,
-                label = { Text("Action Taken") },
+                label = { Text(stringResource(R.string.action_taken)) },
                 singleLine = false,
                 minLines = 1,
                 maxLines = 3,
@@ -221,7 +252,12 @@ fun ChecklistItemRowContent(
                     items(items = item.images, key = { it.id }) { image ->
                         ImageThumbnail(
                             imageUri = image.uri,
-                            onClick = { onImageClick(item.images.map { it.uri }, item.images.indexOf(image)) },
+                            onClick = {
+                                onImageClick(
+                                    item.images.map { it.uri },
+                                    item.images.indexOf(image)
+                                )
+                            },
                             onRemove = { onImageRemoved(image.id, image.uri) }
                         )
                     }
@@ -252,28 +288,35 @@ fun ChecklistItemRowPreview() {
         question = "This is a sample question. Do you have any questions about it?",
         guidelines = "Guidelines",
         options = listOf(
-            ChecklistItemOption(1,  0,"Option 1"),
-            ChecklistItemOption(2,  1,"Option 2"),
+            ChecklistItemOption(1,  0, "Yes"),
+            ChecklistItemOption(2,  1, "No"),
+            ChecklistItemOption(3,  2, "N/A"),
+            ChecklistItemOption(3,  2, "N/A"),
+            ChecklistItemOption(4,  3, "N/V"),
         ),
-        selectedOptionId = 2,
+        selectedOptionId = null,
         fromDocumentation = true,
         onInspection = false,
         images = emptyList(),
-        position = 1
+        position = 1,
+        questionNumber = "1.1"
     )
-    ChecklistItemRowContent(
-        modifier = Modifier.padding(),
-        sectionPosition = 1,
-        item = item,
-        onGuidelineClick =  {  },
-        onOptionSelected = {  },
-        action = "",
-        onActionChanged = {  },
-        comment = "",
-        onCommentChanged = {  },
-        onImageClick = { _, _ -> },
-        onImageRemoved = { _, _ -> },
-        onAddImageClick = {  },
-        { },
-    )
+
+    CheckMateTheme {
+        ChecklistItemRowContent(
+            modifier = Modifier.padding(),
+            sectionPosition = 1,
+            item = item,
+            onGuidelineClick =  {  },
+            onOptionSelected = {  },
+            action = "",
+            onActionChanged = {  },
+            comment = "",
+            onCommentChanged = {  },
+            onImageClick = { _, _ -> },
+            onImageRemoved = { _, _ -> },
+            onAddImageClick = {  },
+            { },
+        )
+    }
 }

@@ -24,6 +24,7 @@ fun ChecklistItemImageEntity.toModel(): ChecklistItemImages =
 fun ChecklistItemWithDetails.toModel(): ChecklistItem =
     ChecklistItem(
         id = item.id,
+        questionNumber = item.questionNumber,
         question = item.question,
         guidelines = item.guidelines,
         options = options.map { it.toModel() },
@@ -41,6 +42,7 @@ fun ChecklistSectionWithItems.toModel(): ChecklistSection =
         id = section.id,
         name = section.name,
         comments = section.comments,
+        sectionNumber = section.sectionNumber,
         position = section.position,
         lastModifiedItemId = section.lastModifiedItemId,
         items = items.map { it.toModel() }

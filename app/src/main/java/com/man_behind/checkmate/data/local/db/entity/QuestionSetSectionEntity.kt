@@ -22,6 +22,7 @@ data class QuestionSetSectionEntity(
     val id: Long = 0,
     val questionSetId: Long,
 
+    val sectionNumber: String,
     val name: String,
     val position: Int,
 )

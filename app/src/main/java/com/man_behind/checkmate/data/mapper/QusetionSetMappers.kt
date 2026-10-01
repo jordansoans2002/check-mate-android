@@ -11,6 +11,7 @@ fun QuestionSetSectionEntity.toChecklistSectionEntity(checklistId: Long): Checkl
     return ChecklistSectionEntity(
         checklistId = checklistId,
         name = name,
+        sectionNumber = sectionNumber,
         position = position,
         comments = "",
         lastModifiedItemId = null
@@ -21,6 +22,7 @@ fun QuestionSetItemEntity.toChecklistItemEntity(checklistSectionId: Long): Check
     return ChecklistItemEntity(
         sectionId = checklistSectionId,
         position = position,
+        questionNumber = questionNumber,
         question = question,
         guidelines = guidelines,
         selectedOptionId = null,

@@ -1,9 +1,8 @@
 package com.man_behind.checkmate.data.model
 
-import android.net.Uri
-
 data class ChecklistItem(
     val id: Long,
+    val questionNumber: String,
     val question: String,
     val guidelines: String? = null,
     val options: List<ChecklistItemOption>,

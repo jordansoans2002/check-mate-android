@@ -41,13 +41,13 @@ fun ImageSourcePicker(
 
             ListItem(
                 modifier = Modifier.clickable { onGalleryClick() },
-                headlineContent = { Text("Gallery") },
+                headlineContent = { Text(stringResource(R.string.add_image_gallery)) },
                 leadingContent = { Icon(Icons.Default.PhotoLibrary, null) },
             )
 
             ListItem(
                 modifier = Modifier.clickable { onCameraClick() },
-                headlineContent = { Text("Camera") },
+                headlineContent = { Text(stringResource(R.string.add_image_camera)) },
                 leadingContent = { Icon(Icons.Default.AddToPhotos,null)}
             )
         }

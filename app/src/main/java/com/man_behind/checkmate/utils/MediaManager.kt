@@ -21,16 +21,15 @@ class MediaManager @Inject constructor(
 
     fun getTempCameraUri(): Uri? {
         return try {
-            val cacheDirectory = context.externalCacheDir ?: context.cacheDir
-            val directory = File(cacheDirectory, "images").apply { mkdirs() }
+            val directory = File(context.cacheDir, "images").apply { mkdirs() }
             val file = File.createTempFile("captured_image_", ".jpg", directory)
-            return FileProvider.getUriForFile(
+            FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
                 file
             )
         } catch (e: Exception) {
-            Log.e("MediaManager", "Failed to create temp file: $e")
+            Log.e("MediaManager", "Failed to create temp file", e)
             null
         }
     }
@@ -62,7 +61,7 @@ class MediaManager @Inject constructor(
             }
             Uri.fromFile(dest)
         } catch (e: Exception) {
-            Log.e("MediaManager", "Failed to save to app storage: $e")
+            Log.e("MediaManager", "Failed to save to app storage", e)
             null
         }
     }

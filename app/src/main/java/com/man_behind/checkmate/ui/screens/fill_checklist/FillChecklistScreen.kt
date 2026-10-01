@@ -69,6 +69,7 @@ import com.man_behind.checkmate.ui.components.GuidelineTooltip
 import com.man_behind.checkmate.ui.components.ImageSourcePicker
 import com.man_behind.checkmate.ui.components.ImageViewerDialog
 import com.man_behind.checkmate.ui.components.SectionListBottomSheet
+import com.man_behind.checkmate.ui.theme.CheckMateTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
@@ -84,6 +85,7 @@ fun FillChecklistScreen(
 
     var activeSectionId by rememberSaveable { mutableStateOf<Long?>(null) }
     var restoredPosition by rememberSaveable { mutableStateOf(false) }
+    var capturedImageUri by rememberSaveable { mutableStateOf<Uri?>(null) }
 
     var showSectionListBottomSheet by remember { mutableStateOf(false) }
     var showGuidelineTooltip by remember { mutableStateOf<String?>(null) }
@@ -91,7 +93,6 @@ fun FillChecklistScreen(
     var showImageViewer by remember { mutableStateOf<Pair<List<Uri>, Int>?>(null) }
     var showImageSourcePicker by remember { mutableStateOf(false) }
     var currentItemForImages by remember { mutableStateOf<ChecklistItem?>(null) }
-    var capturedImageUri by remember { mutableStateOf<Uri?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     val galleryLauncher = rememberLauncherForActivityResult(
@@ -175,7 +176,9 @@ fun FillChecklistScreen(
         if (showSectionListBottomSheet) {
             SectionListBottomSheet(
                 currentSectionIndex = activeSectionIndex,
-                sectionList = checklist.sections.map { it.name },
+                sectionList = checklist.sections.map {
+                    stringResource(R.string.section_number_name, it.sectionNumber, it.name)
+                },
                 onClick = {
                     activeSectionId = checklist.sections[it].id
                     showSectionListBottomSheet = false
@@ -192,17 +195,8 @@ fun FillChecklistScreen(
             onSectionClick = { showSectionListBottomSheet = true },
             onSectionChange = { activeSectionId = checklist.sections[activeSectionIndex + it].id },
             getController = { viewModel.getController(it) },
-            onGuidelineClick = { text ->
-                showGuidelineBottomSheet = text
-//                if (text.length < 100) {
-//                    showGuidelineTooltip = text
-//                } else {
-//                    showGuidelineBottomSheet = text
-//                }
-            },
-            onImageClick = { uris, index ->
-                showImageViewer = uris to index
-            },
+            onGuidelineClick = { text -> showGuidelineBottomSheet = text },
+            onImageClick = { uris, index -> showImageViewer = uris to index },
             onAddImageClick = { item ->
                 currentItemForImages = item
                 showImageSourcePicker = true
@@ -253,7 +247,7 @@ fun FillChecklistScreen(
                         capturedImageUri = uri
                         cameraLauncher.launch(uri)
                     } catch (e: ActivityNotFoundException) {
-                        Log.e("FillChecklistScreen", "Camera app not found: $e")
+                        Log.e("FillChecklistScreen", "Camera app not found", e)
                         scope.launch {
                             viewModel.snackbar.emit("Camera app not accessible. Please add image from gallery")
                         }
@@ -261,7 +255,7 @@ fun FillChecklistScreen(
                 } else {
                     Log.e("FillChecklistScreen", "Failed to create temp camera URI")
                     scope.launch {
-                        viewModel.snackbar.emit("Camera app not accessible. Please add image from gallery")
+                        viewModel.snackbar.emit("File storage not accessible. Please add image from gallery")
                     }
                 }
             }
@@ -360,10 +354,11 @@ fun FillChecklistContent(
                         overflow = TextOverflow.Ellipsis
                     )
 
+                    val section = checklist.sections[activeSectionIndex]
                     Text(
                         modifier = Modifier.fillMaxWidth(),
-                        text = checklist.sections[activeSectionIndex].name,
-                        style = MaterialTheme.typography.titleLarge,
+                        text = stringResource(R.string.section_number_name, section.sectionNumber, section.name),
+                        style = MaterialTheme.typography.titleMedium,
                         textAlign = TextAlign.Center,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -473,96 +468,107 @@ fun FillChecklistContentPreview() {
     val controllers = remember { mutableMapOf<Long, ChecklistItemEditController>() }
     val mockRepository = remember { ChecklistRepositoryMockImpl() }
 
-    FillChecklistContent(
-        checklist = Checklist(
-            id = 1,
-            name = "Inspection Checklist",
-            sections = listOf(
-                ChecklistSection(
-                    id = 1,
-                    position = 0,
-                    name = "General",
-                    items = listOf(
-                        ChecklistItem(
-                            id = 101,
-                            question = "This is a sample question. Do you have any questions about it?",
-                            guidelines = "Guidelines for this question.",
-                            options = listOf(
-                                ChecklistItemOption(1, 0,"Yes"),
-                                ChecklistItemOption(2, 1, "No"),
-                                ChecklistItemOption(3, 2, "N/A")
-                            ),
-                            position = 1,
-                            fromDocumentation = true,
-                            onInspection = false,
-                        )
-                    )
-                ),
-                ChecklistSection(
-                    id = 2,
-                    position = 0,
-                    name = "General",
-                    items = listOf(
-                        ChecklistItem(
-                            id = 102,
-                            question = "This is a sample question. Do you have any questions about it?",
-                            guidelines = "Guidelines for this question.",
-                            options = listOf(
-                                ChecklistItemOption(1, 0,"Yes"),
-                                ChecklistItemOption(2, 1,"No"),
-                                ChecklistItemOption(3, 2, "N/A")
-                            ),
-                            position = 1,
-                            fromDocumentation = true,
-                            onInspection = false,
-                        )
-                    )
-                ),
-                ChecklistSection(
-                    id = 3,
-                    position = 0,
-                    name = "General",
-                    items = listOf(
-                        ChecklistItem(
-                            id = 103,
-                            question = "This is a sample question. Do you have any questions about it?",
-                            guidelines = "Guidelines for this question.",
-                            options = listOf(
-                                ChecklistItemOption(1, 0,"Yes"),
-                                ChecklistItemOption(2, 1,"No"),
-                                ChecklistItemOption(3, 2, "N/A")
-                            ),
-                            position = 1,
-                            fromDocumentation = true,
-                            onInspection = false,
-                        )
+    val checklist = Checklist(
+        id = 1,
+        name = "Inspection Checklist",
+        sections = listOf(
+            ChecklistSection(
+                id = 1,
+                position = 0,
+                sectionNumber = "1",
+                name = "General",
+                items = listOf(
+                    ChecklistItem(
+                        id = 101,
+                        questionNumber = "1.1",
+                        question = "This is a sample question. Do you have any questions about it?",
+                        guidelines = "Guidelines for this question.",
+                        options = listOf(
+                            ChecklistItemOption(1, 0,"Yes"),
+                            ChecklistItemOption(2, 1, "No"),
+                            ChecklistItemOption(3, 2, "N/A")
+                        ),
+                        position = 1,
+                        fromDocumentation = true,
+                        onInspection = false,
                     )
                 )
             ),
-            createdOn = LocalDateTime.now(),
-            questionSetId = 1,
-            comments = "",
-            lastModifiedSectionId = null,
-            lastModifiedOn = null
-        ),
-        snackbarHostState = remember { SnackbarHostState() },
-        onSectionClick = { },
-        activeSectionIndex = 1,
-        onSectionChange = { },
-        onGuidelineClick = {  },
-        onImageClick = { _, _ -> },
-        onAddImageClick = { },
-        onRemoveImageClick = { _, _, _ -> },
-        getController = { item ->
-            controllers.getOrPut(item.id) {
-                ChecklistItemEditController(
-                    itemId = item.id,
-                    initialAction = item.actionTaken,
-                    initialComment = item.comment,
-                    repository = mockRepository,
-                    scope = scope
+            ChecklistSection(
+                id = 2,
+                sectionNumber = "2A",
+                position = 0,
+                name = "General",
+                items = listOf(
+                    ChecklistItem(
+                        id = 102,
+                        questionNumber = "2.1.1",
+                        question = "This is a sample question. Do you have any questions about it?",
+                        guidelines = "Guidelines for this question.",
+                        options = listOf(
+                            ChecklistItemOption(1, 0, "Yes"),
+                            ChecklistItemOption(2, 1, "No"),
+                            ChecklistItemOption(3, 2, "N/A")
+                        ),
+                        selectedOptionId = null,
+                        position = 1,
+                        fromDocumentation = true,
+                        onInspection = false,
+                    )
                 )
-            }
-        }
+            ),
+            ChecklistSection(
+                id = 3,
+                sectionNumber = "2B",
+                position = 0,
+                name = "General",
+                items = listOf(
+                    ChecklistItem(
+                        id = 103,
+                        questionNumber = "2.2.1",
+                        question = "This is a sample question. Do you have any questions about it?",
+                        guidelines = "Guidelines for this question.",
+                        options = listOf(
+                            ChecklistItemOption(1, 0,"Yes"),
+                            ChecklistItemOption(2, 1,"No"),
+                            ChecklistItemOption(3, 2, "N/A")
+                        ),
+                        position = 1,
+                        fromDocumentation = true,
+                        onInspection = false,
+                    )
+                )
+            )
+        ),
+        createdOn = LocalDateTime.now(),
+        questionSetId = 1,
+        comments = "",
+        lastModifiedSectionId = null,
+        lastModifiedOn = null
     )
+
+    CheckMateTheme {
+        FillChecklistContent(
+            checklist = checklist,
+            snackbarHostState = remember { SnackbarHostState() },
+            onSectionClick = { },
+            activeSectionIndex = 1,
+            onSectionChange = { },
+            onGuidelineClick = {  },
+            onImageClick = { _, _ -> },
+            onAddImageClick = { },
+            onRemoveImageClick = { _, _, _ -> },
+            getController = { item ->
+                controllers.getOrPut(item.id) {
+                    ChecklistItemEditController(
+                        itemId = item.id,
+                        initialAction = item.actionTaken,
+                        initialComment = item.comment,
+                        repository = mockRepository,
+                        scope = scope
+                    )
+                }
+            }
+        )
+    }
 }

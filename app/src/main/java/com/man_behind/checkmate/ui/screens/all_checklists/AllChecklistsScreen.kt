@@ -50,6 +50,7 @@ import com.man_behind.checkmate.R
 import com.man_behind.checkmate.data.model.ChecklistOverview
 import com.man_behind.checkmate.ui.components.ChecklistOverviewItem
 import com.man_behind.checkmate.ui.components.CreateChecklistDialog
+import com.man_behind.checkmate.ui.theme.CheckMateTheme
 import kotlinx.coroutines.flow.collectLatest
 
 
@@ -103,8 +104,8 @@ fun AllChecklistsScreen(
                 }?.name
                 ?.replace(Regex("[^a-zA-Z0-9 _-]"), "")
                 ?.trim() ?: ""
-                .ifBlank { "checklist" }
-            createDocumentLauncher.launch(name+  ".pdf")
+                .ifBlank { stringResource(R.string.export_filename_fallback) }
+            createDocumentLauncher.launch(stringResource(R.string.export_filename_extension, name))
             viewModel.hideSaveExportDialog()
         } else {
             openTreeLauncher.launch(null)
@@ -270,7 +271,7 @@ fun SelectionTopBar(
 ) {
     TopAppBar(
         title = {
-            Text("${selectedCount} selected")
+            Text(stringResource(R.string.selected_count, selectedCount))
         },
         navigationIcon = {
             IconButton(onClick = onClear) {
@@ -324,16 +325,19 @@ fun AllChecklistsContentPreview() {
         )
     )
 
-    AllChecklistsContent(
-        uiState = AllChecklistsUiState(
-            checklists = sampleData,
-            isLoading = false
-        ),
-        onAddClick = {},
-        onChecklistClick = {},
-        onChecklistLongClick = {},
-        onClearSelection = {  },
-        onExport = {  },
-        onDelete = {  }
-    )
+    CheckMateTheme {
+        AllChecklistsContent(
+            uiState = AllChecklistsUiState(
+                checklists = sampleData,
+                selectedChecklists = setOf(1),
+                isLoading = false
+            ),
+            onAddClick = {},
+            onChecklistClick = {},
+            onChecklistLongClick = {},
+            onClearSelection = {  },
+            onExport = {  },
+            onDelete = {  }
+        )
+    }
 }

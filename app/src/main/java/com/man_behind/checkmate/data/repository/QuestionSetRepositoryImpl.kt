@@ -18,9 +18,9 @@ class QuestionSetRepositoryImpl @Inject constructor(
 ) : QuestionSetRepository {
     companion object {
         // CSV column indices — must match the header row exactly
+        private const val COL_SECTION_NUMBER   = 0
         private const val COL_SECTION_NAME     = 1
-        // COL_SECTION_NUMBER (0) and COL_QUESTION_NUMBER (2) are reference-only,
-        // not stored in the DB. Position is derived from row order in the file.
+        private const val COL_QUESTION_NUMBER  = 2
         private const val COL_QUESTION         = 3
         private const val COL_GUIDELINES       = 4
         private const val COL_FROM_DOCS        = 5
@@ -59,12 +59,14 @@ class QuestionSetRepositoryImpl @Inject constructor(
         dataRows.forEach { row ->
             if (row.size < EXPECTED_COLUMNS) return@forEach // skip malformed rows
             val sectionName = row[COL_SECTION_NAME].trim()
+            val sectionNumber = row[COL_SECTION_NUMBER].trim()
             sectionMap.getOrPut(sectionName) { mutableListOf() }.add(row)
         }
 
         val sectionsWithItems = sectionMap.entries.mapIndexed { sectionIndex, (sectionName, sectionRows) ->
             val section = QuestionSetSectionEntity(
                 questionSetId = 0,
+                sectionNumber = sectionRows[0][COL_SECTION_NUMBER],
                 position = sectionIndex,
                 name = sectionName,
             )
@@ -73,6 +75,7 @@ class QuestionSetRepositoryImpl @Inject constructor(
                 val item = QuestionSetItemEntity(
                     sectionId = 0,
                     position = itemIndex,
+                    questionNumber = row[COL_QUESTION_NUMBER],
                     question = row[COL_QUESTION].trim(),
                     guidelines = row[COL_GUIDELINES].trim().ifBlank { null },
                     fromDocumentation = row[COL_FROM_DOCS].trim().lowercase() == "true",

@@ -46,4 +46,4 @@ app/release/app-release.apk
 ## Share with Users
 
 - **WhatsApp** — send the APK file directly
-- **Installation instructions** — share the link to the repo: `https://github.com/YOUR_USERNAME/YOUR_REPO_NAME`
+- **Installation instructions** — share the link to the repo: `https://github.com/jordansoans2002/check-mate-android`

@@ -10,7 +10,6 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
-import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.text.Layout
@@ -40,6 +39,8 @@ class ChecklistPdfExporter(private val context: Context) {
     private val BORDER_LIGHT  = Color.rgb(0xE8, 0xE8, 0xE8)
     private val GREEN         = Color.rgb(0x15, 0x80, 0x3D)
     private val RED           = Color.rgb(0xCC, 0x1A, 0x1A)
+    private val BLUE   = Color.rgb(0x1A, 0x65, 0xCC)
+    private val YELLOW = Color.rgb(0xCC, 0x8C, 0x1A)
 
     // ── Typefaces ─────────────────────────────────────────────────────────────
     private val REGULAR = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
@@ -61,7 +62,7 @@ class ChecklistPdfExporter(private val context: Context) {
     )
 
     private data class RenderSection(
-        val number: Int,
+        val number: String,
         val name: String,
         val comments: String,
         val items: List<RenderItem>,
@@ -74,16 +75,16 @@ class ChecklistPdfExporter(private val context: Context) {
             val success = runCatching {
                 val sections = checklist.sections
                     .sortedBy { it.position }
-                    .mapIndexed { si, section ->
+                    .map { section ->
                         RenderSection(
-                            number   = si + 1,
+                            number   = section.sectionNumber,
                             name     = section.name,
                             comments = section.comments,
                             items    = section.items
                                 .sortedBy { it.position }
-                                .mapIndexed { ii, item ->
+                                .map { item ->
                                     RenderItem(
-                                        number           = "${si + 1}.${ii + 1}",
+                                        number           = item.questionNumber,
                                         question         = item.question,
                                         options          = item.options.map {
                                             RenderOption(it.id, it.position, it.text)
@@ -272,9 +273,26 @@ class ChecklistPdfExporter(private val context: Context) {
                 iy += 4f
             }
 
+            val isAnswered = item.selectedOptionId != null ||
+                    item.comment.isNotBlank() ||
+                    item.actionTaken.isNotBlank() ||
+                    item.imageUris.isNotEmpty()
+
+            // Determine leading line color from selected option text
+            val selectedText = item.options.find { it.id == item.selectedOptionId }?.text
+            val verticalLineColor = when {
+                !isAnswered -> TEXT
+                selectedText.isNullOrBlank() -> ORANGE
+                selectedText.contains("yes", ignoreCase = true) -> GREEN
+                selectedText.contains("no", ignoreCase = true) -> RED
+                selectedText.contains("n/a", ignoreCase = true) -> BLUE
+                selectedText.contains("n/v", ignoreCase = true) -> YELLOW
+                else -> ORANGE
+            }
+
             // Determine comment colour from the selected option text
-            val selectedText = item.options.find { it.id == item.selectedOptionId }?.text ?: ""
             val commentColor = when {
+                selectedText.isNullOrBlank() -> TEXT
                 selectedText.contains("yes", ignoreCase = true) -> GREEN
                 selectedText.contains("no",  ignoreCase = true) -> RED
                 else                                            -> TEXT
@@ -311,7 +329,7 @@ class ChecklistPdfExporter(private val context: Context) {
                 moveTo(M + 3f, cardTop + 3f)
                 lineTo(M + 3f, iy - 3f)
             }
-            canvas.drawPath(accentPath, mk(ORANGE, 4f, cap = Paint.Cap.ROUND))
+            canvas.drawPath(accentPath, mk(verticalLineColor, 4f, cap = Paint.Cap.ROUND))
 
             y = iy + 8f
         }

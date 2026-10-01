@@ -32,6 +32,7 @@ data class ChecklistItemEntity (
     val sectionId: Long,
 
     val position: Int,
+    val questionNumber: String,
     val question: String,
     val guidelines: String? = null,
     val selectedOptionId: Long? = null,

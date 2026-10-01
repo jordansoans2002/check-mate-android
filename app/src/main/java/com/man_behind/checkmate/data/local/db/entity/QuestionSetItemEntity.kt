@@ -23,6 +23,7 @@ data class QuestionSetItemEntity(
     val sectionId: Long,
 
     val position: Int,
+    val questionNumber: String,
     val question: String,
     val guidelines: String? = null,
     val fromDocumentation: Boolean,
