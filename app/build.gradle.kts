@@ -15,8 +15,8 @@ android {
         applicationId = "com.man_behind.checkmate"
         minSdk = 26
         targetSdk = 37
-        versionCode = 3
-        versionName = "1.0.0"
+        versionCode = 4
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

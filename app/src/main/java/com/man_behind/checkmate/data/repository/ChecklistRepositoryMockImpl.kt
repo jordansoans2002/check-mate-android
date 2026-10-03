@@ -18,11 +18,10 @@ class ChecklistRepositoryMockImpl : ChecklistRepository {
 
     override fun getChecklistById(id: Long): Flow<Checklist?> = flowOf(null)
 
-    override suspend fun updateChecklistItem(
+    override suspend fun saveCommentAction(
         itemId: Long,
-        selectedOptionId: Long?,
-        actionTaken: String?,
-        comment: String?,
+        comment: String,
+        actionTaken: String,
     ) {}
 
     override suspend fun updateSelectedOption(itemId: Long, optionId: Long?) {}

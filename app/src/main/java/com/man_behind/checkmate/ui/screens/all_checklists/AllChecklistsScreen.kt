@@ -5,11 +5,13 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -169,23 +171,45 @@ fun AllChecklistsContent(
 
     Scaffold(
         topBar = {
-            AnimatedVisibility(
-                visible = isSelecting,
-                enter = slideInVertically() + fadeIn(),
-                exit = slideOutVertically() + fadeOut()
-            ) {
-                SelectionTopBar(
-                    isLoading = uiState.isLoading,
-                    selectedCount = uiState.selectedChecklists.size,
-                    onExport = onExport,
-                    onClear = onClearSelection,
-                    onDelete = onDelete
-                )
+            AnimatedContent(
+                targetState = isSelecting,
+                transitionSpec = {
+                    if (targetState) {
+                        (slideInVertically { -it } + fadeIn()) togetherWith
+                                (slideOutVertically { it } + fadeOut())
+                    } else {
+                        (slideInVertically { it } + fadeIn()) togetherWith
+                                (slideOutVertically { -it } + fadeOut())
+                    }
+                },
+                label = "selection_top_bar"
+            ) { selecting ->
+                if (selecting) {
+                    SelectionTopBar(
+                        isLoading = uiState.isLoading,
+                        selectedCount = uiState.selectedChecklists.size,
+                        onExport = onExport,
+                        onClear = onClearSelection,
+                        onDelete = onDelete
+                    )
+                } else {
+                    TopAppBar(
+                        title = {
+                            Text(
+                                text = stringResource(R.string.app_name),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    )
+                }
             }
         }
     ) { paddingValues ->
-
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .padding(paddingValues)
+                .fillMaxSize()
+        ) {
             when {
                 uiState.checklists.isEmpty() -> {
                     Box(
@@ -201,8 +225,8 @@ fun AllChecklistsContent(
 
                 else -> {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = paddingValues,
+                        modifier = Modifier
+                            .fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         items(

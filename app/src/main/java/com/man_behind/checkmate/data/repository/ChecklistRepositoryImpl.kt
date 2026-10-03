@@ -40,22 +40,28 @@ class ChecklistRepositoryImpl @Inject constructor(
     override fun getChecklistById(id: Long): Flow<Checklist?> =
         databaseService.checklistDao().getChecklistById(id).map { it?.toModel() }
 
-    override suspend fun updateChecklistItem(
-        itemId: Long,
-        selectedOptionId: Long?,
-        actionTaken: String?,
-        comment: String?,
-    ) {
-        databaseService.checklistDao().updateItemDetails(
-            itemId = itemId,
-            selectedOptionId = selectedOptionId,
-            actionTaken = actionTaken ?: "",
-            comment = comment ?: ""
-        )
-    }
-
     override suspend fun updateSelectedOption(itemId: Long, optionId: Long?) {
         databaseService.checklistDao().updateSelectedOptionWithMetadata(itemId, optionId)
+    }
+
+    override suspend fun updateComment(itemId: Long, comment: String) {
+        databaseService.checklistDao().updateCommentWithMetadata(itemId, comment)
+    }
+
+    override suspend fun updateActionTaken(itemId: Long, actionTaken: String) {
+        databaseService.checklistDao().updateActionTakenWithMetadata(itemId, actionTaken)
+    }
+
+    override suspend fun saveCommentAction(
+        itemId: Long,
+        comment: String,
+        actionTaken: String
+    ) {
+        databaseService.checklistDao().updateCommentActionWithMetadata(
+            itemId = itemId,
+            comment = comment,
+            actionTaken = actionTaken
+        )
     }
 
     override suspend fun addImages(itemId: Long, images: List<Uri>) {
@@ -71,13 +77,6 @@ class ChecklistRepositoryImpl @Inject constructor(
         databaseService.checklistDao().deleteImageWithMetadata(itemId, itemImageId)
     }
 
-    override suspend fun updateComment(itemId: Long, comment: String) {
-        databaseService.checklistDao().updateComment(itemId, comment)
-    }
-
-    override suspend fun updateActionTaken(itemId: Long, actionTaken: String) {
-        databaseService.checklistDao().updateActionTaken(itemId, actionTaken)
-    }
 
     override suspend fun renameChecklist(checklistId: Long, newName: String) {
         // No-op for UI testing

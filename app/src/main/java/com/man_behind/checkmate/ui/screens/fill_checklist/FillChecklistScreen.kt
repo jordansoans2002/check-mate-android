@@ -302,8 +302,12 @@ fun FillChecklistContent(
 
     Scaffold(
         snackbarHost = { AppSnackbarHost(hostState = snackbarHostState) }
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .padding(paddingValues)
+                .fillMaxSize()
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth(),

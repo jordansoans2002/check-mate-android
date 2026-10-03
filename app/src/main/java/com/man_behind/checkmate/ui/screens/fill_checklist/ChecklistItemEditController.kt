@@ -1,6 +1,7 @@
 package com.man_behind.checkmate.ui.screens.fill_checklist
 
 import android.net.Uri
+import android.util.Log
 import com.man_behind.checkmate.data.repository.ChecklistRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
@@ -36,34 +37,34 @@ class ChecklistItemEditController(
     @OptIn(FlowPreview::class)
     private fun setupDebounce() {
         scope.launch {
-            actionFlow
-                .debounce(700.milliseconds)
-                .distinctUntilChanged()
-                .collectLatest { new ->
-                    if (new != lastSavedAction) {
-                        save(actionTaken = new)
-                    }
-                }
-        }
-
-        scope.launch {
             commentFlow
                 .debounce(700.milliseconds)
                 .distinctUntilChanged()
                 .collectLatest { new ->
                     if (new != lastSavedComment) {
-                        save(comment = new)
+                        repository.updateComment(itemId, new)
+                    }
+                }
+        }
+
+        scope.launch {
+            actionFlow
+                .debounce(700.milliseconds)
+                .distinctUntilChanged()
+                .collectLatest { new ->
+                    if (new != lastSavedAction) {
+                        repository.updateActionTaken(itemId, new)
                     }
                 }
         }
     }
 
-    fun onActionChanged(text: String) {
-        actionFlow.value = text
-    }
-
     fun onCommentChanged(text: String) {
         commentFlow.value = text
+    }
+
+    fun onActionChanged(text: String) {
+        actionFlow.value = text
     }
 
     fun onOptionSelected(optionId: Long?) {
@@ -97,34 +98,23 @@ class ChecklistItemEditController(
         val needsAction = action != lastSavedAction
         val needsComment = comment != lastSavedComment
 
-        if (!needsAction && !needsComment)
-            return
-
         scope.launch {
-            repository.updateChecklistItem(
-                itemId = itemId,
-                actionTaken = if (needsAction) action else null,
-                comment = if (needsComment) comment else null
-            )
-
-            if (needsAction) lastSavedAction = action
-            if (needsComment) lastSavedComment = comment
-        }
-    }
-
-    private fun save(
-        actionTaken: String? = null,
-        comment: String? = null
-    ) {
-        scope.launch {
-            repository.updateChecklistItem(
-                itemId = itemId,
-                actionTaken = actionTaken,
-                comment = comment
-            )
-
-            actionTaken?.let { lastSavedAction = it }
-            comment?.let { lastSavedComment = it }
+            if(needsComment && needsAction){
+                repository.saveCommentAction(
+                    itemId = itemId,
+                    comment = comment,
+                    actionTaken = action
+                )
+                lastSavedComment = comment
+                lastSavedAction = action
+            } else if (needsComment) {
+                repository.updateComment(itemId, comment)
+                lastSavedComment = comment
+            } else if (needsAction) {
+                repository.updateActionTaken(itemId, action)
+                lastSavedAction = action
+            } else
+                return@launch
         }
     }
 }

@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+## [1.0.2] - 2026-10-03
+### Fixed
+- Save comment and action without overwriting selected option
+- Save comment and action separately so they don't overwrite each other
+
+### Added
+- Top app bar with animations for all checklists screen
+
+---
 ## [1.0.1] - 2026-10-02
 ### Fixed
 - Handle camera crash and show error message. Error may be due to phone configuration

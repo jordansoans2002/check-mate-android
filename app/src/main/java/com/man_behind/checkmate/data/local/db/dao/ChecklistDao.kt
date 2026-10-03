@@ -175,16 +175,14 @@ interface ChecklistDao {
 
     @Query("""
         UPDATE checklist_items
-        SET selectedOptionId = :selectedOptionId,
-            actionTaken = :actionTaken,
-            comment = :comment
+        SET comment = :comment,
+            actionTaken = :actionTaken
         WHERE id = :itemId
     """)
-    suspend fun updateItemDetails(
+    suspend fun updateCommentAction(
         itemId: Long,
-        selectedOptionId: Long?,
-        actionTaken: String,
-        comment: String
+        comment: String,
+        actionTaken: String
     )
 
     // ---------------------------------------------------------------------
@@ -230,14 +228,13 @@ interface ChecklistDao {
     }
 
     @Transaction
-    suspend fun updateItemDetailsWithMetadata(
+    suspend fun updateCommentActionWithMetadata(
         itemId: Long,
-        selectedOptionId: Long?,
-        actionTaken: String,
         comment: String,
+        actionTaken: String,
         timestamp: LocalDateTime = LocalDateTime.now()
     ) {
-        updateItemDetails(itemId, selectedOptionId, actionTaken, comment)
+        updateCommentAction(itemId, comment, actionTaken)
         updateChecklistMetadata(itemId, timestamp)
         updateSectionMetadata(itemId)
     }
